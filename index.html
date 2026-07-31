@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>數位 POS 與分潤結帳系統</title>
+  <!-- 引入 html2canvas 截圖套件 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    h1, h2 { text-align: center; color: #333; }
+    
+    /* 表單與輸入框樣式 */
+    .form-group { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+    .form-group > div { flex: 1; min-width: 150px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+    input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    
+    /* 購物車明細清單 */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+    th { background-color: #f8f9fa; }
+    .btn-add { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
+    .btn-remove { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+    
+    /* 總計與送出按鈕 */
+    .total-section { text-align: right; font-size: 1.2em; font-weight: bold; margin-bottom: 20px; }
+    .btn-submit { background: #007bff; color: white; border: none; padding: 15px 30px; font-size: 1.1em; border-radius: 4px; cursor: pointer; width: 100%; }
+    .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* 簽名板彈跳視窗 */
+    #signatureModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 20px; border-radius: 8px; text-align: center; width: 90%; max-width: 500px; }
+    canvas { border: 2px dashed #ccc; background: #fafafa; cursor: crosshair; margin-bottom: 15px; width: 100%; }
+    .modal-btns button { padding: 10px 20px; margin: 0 5px; border: none; border-radius: 4px; cursor: pointer; font-size: 1em;}
+    .btn-clear { background: #ffc107; color: #333; }
+    .btn-confirm { background: #28a745; color: white; }
+
+    /* 隱藏的簽名圖片區塊 (用於截圖) */
+    #receiptSignature { display: none; margin-top: 20px; text-align: right; }
+    #receiptSignature img { max-width: 200px; border-bottom: 1px solid #000; }
+  </style>
+</head>
+<body>
+
+<div class="container" id="receiptArea">
+  <h1>數位 POS 結帳單</h1>
+  
+  <div class="form-group">
+    <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
+    <div>
+      <label>收款人員</label>
+      <select id="cashier">
+        <option value="櫃台人員A">櫃台人員A</option>
+        <option value="櫃台人員B">櫃台人員B</option>
+      </select>
+    </div>
+    <div>
+      <label>收款方式</label>
+      <select id="paymentMethod">
+        <option value="現金">現金</option>
+        <option value="匯款">匯款</option>
+        <option value="扣堂">扣堂</option>
+      </select>
+    </div>
+    <div>
+      <label>收款單位</label>
+      <select id="paymentUnit">
+        <option value="台中店">台中店</option>
+        <option value="台東店">台東店</option>
+      </select>
+    </div>
+  </div>
+
+  <h2>購買明細</h2>
+  <button class="btn-add" onclick="addCartItem()">+ 新增服務項目</button>
+  <table id="cartTable">
+    <thead>
+      <tr>
+        <th>服務項目</th>
+        <th>調理人員</th>
+        <th>單價</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="cartBody">
+      <!-- 動態新增的列會出現在這裡 -->
+    </tbody>
+  </table>
+
+  <div class="total-section">
+    總計金額：NT$ <span id="totalAmount">0</span>
+  </div>
+
+  <!-- 用於顯示顧客簽名，準備進行第二次截圖 -->
+  <div id="receiptSignature">
+    <p>顧客簽名確認：</p>
+    <img id="finalSignatureImg" src="" alt="顧客簽名">
+  </div>
+</div>
+
+<button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
+
+<!-- 簽名板 Modal -->
+<div id="signatureModal">
+  <div class="modal-content">
+    <h2>請顧客簽名</h2>
+    <canvas id="sigCanvas" width="400" height="200"></canvas>
+    <div class="modal-btns">
+      <button class="btn-clear" onclick="clearCanvas()">清除重簽</button>
+      <button class="btn-confirm" onclick="confirmSignature()">確認簽名結帳</button>
+    </div>
+  </div>
+</div>
+
+<!-- 引入前端邏輯 -->
+<script src="app.js"></script>
+</body>
+</html>
