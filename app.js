@@ -8,7 +8,7 @@ let signedBase64Data = "";
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定"];
 
-// 【優化2】建立服務項目與對應的固定價格 (請在此修改你們的實際售價)
+// 建立服務項目與對應的固定價格
 const servicePrices = {
   "美甲": 1500,
   "手足保養": 1200,
@@ -21,14 +21,13 @@ const servicePrices = {
   "特殊折扣": 0,
   "不入業績": 0
 };
-// 從字典中自動萃取出項目名稱
 const services = Object.keys(servicePrices);
 
 // ==========================================
 // 網頁初始化與購物車邏輯
 // ==========================================
 window.onload = () => { 
-  initCashierOptions(); // 【優化1】自動生成收款人員
+  initCashierOptions(); 
   addCartItem(); 
 };
 
@@ -43,28 +42,37 @@ function addCartItem() {
 
   const serviceOptions = services.map(s => `<option value="${s}">${s}</option>`).join('');
   const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
-  const defaultService = services[0]; // 預設第一項服務
-  const defaultPrice = servicePrices[defaultService]; // 預設第一項服務的價格
+  const defaultService = services[0]; 
+  const defaultPrice = servicePrices[defaultService]; 
 
-  // 【優化2】綁定 onchange 事件自動更新價格，並設定 input 為 readonly (唯讀)
+  // 加入 oninput="calculateTotal()" 讓輸入時能即時計算總金額
   tr.innerHTML = `
     <td><select class="item-name" onchange="updatePrice(this)">${serviceOptions}</select></td>
     <td><select class="item-tech">${techOptions}</select></td>
-    <td><input type="number" class="item-price" value="${defaultPrice}" readonly></td>
+    <td><input type="number" class="item-price" value="${defaultPrice}" oninput="calculateTotal()" readonly></td>
     <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>
   `;
   tbody.appendChild(tr);
   calculateTotal();
 }
 
-// 自動更新價格的函數
+// 自動更新價格與解鎖特殊折扣的函數
 function updatePrice(selectElement) {
-  const selectedService = selectElement.value; // 取得選擇的項目
-  const tr = selectElement.closest("tr");      // 找到目前這行
-  const priceInput = tr.querySelector(".item-price"); // 找到該行的金額欄位
+  const selectedService = selectElement.value; 
+  const tr = selectElement.closest("tr");      
+  const priceInput = tr.querySelector(".item-price"); 
   
-  priceInput.value = servicePrices[selectedService]; // 帶入字典中的價格
-  calculateTotal(); // 重新計算總計
+  if (selectedService === "特殊折扣") {
+    // 如果選了特殊折扣，解除唯讀狀態讓使用者填寫，並將預設值歸零
+    priceInput.readOnly = false;
+    priceInput.value = 0;
+  } else {
+    // 其他項目則鎖定唯讀，並帶入預設價格
+    priceInput.readOnly = true;
+    priceInput.value = servicePrices[selectedService]; 
+  }
+  
+  calculateTotal(); 
 }
 
 function removeCartItem(btn) {
@@ -74,16 +82,26 @@ function removeCartItem(btn) {
 
 function calculateTotal() {
   let total = 0;
-  const prices = document.querySelectorAll(".item-price");
-  prices.forEach(input => {
-    total += parseInt(input.value) || 0;
+  const rows = document.querySelectorAll("#cartBody tr");
+  
+  rows.forEach(row => {
+    const serviceName = row.querySelector(".item-name").value;
+    let price = parseInt(row.querySelector(".item-price").value) || 0;
+    
+    // 判斷如果是特殊折扣，則將金額用減法扣除
+    if (serviceName === "特殊折扣") {
+      total -= Math.abs(price);
+    } else {
+      total += price;
+    }
   });
+  
   document.getElementById("totalAmount").innerText = total;
   return total;
 }
 
 // ==========================================
-// 簽名板畫布 (Canvas) 邏輯 (保持不變)
+// 簽名板畫布 (Canvas) 邏輯
 // ==========================================
 const canvas = document.getElementById("sigCanvas");
 const ctx = canvas.getContext("2d");
@@ -167,10 +185,18 @@ function submitToGAS() {
 
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => {
+    const serviceName = row.querySelector(".item-name").value;
+    let finalPrice = parseInt(row.querySelector(".item-price").value) || 0;
+    
+    // 在寫入資料庫前，將特殊折扣的金額轉為負數
+    if (serviceName === "特殊折扣") {
+      finalPrice = -Math.abs(finalPrice);
+    }
+
     cartItems.push({
-      item_name: row.querySelector(".item-name").value,
+      item_name: serviceName,
       technician: row.querySelector(".item-tech").value,
-      price: parseInt(row.querySelector(".item-price").value) || 0
+      price: finalPrice
     });
   });
 
@@ -183,7 +209,7 @@ function submitToGAS() {
     payment_unit: document.getElementById("paymentUnit").value,
     total_amount: calculateTotal(),
     cart_items: cartItems,
-    note: document.getElementById("orderNote").value, // 【優化3】打包備註欄位資料送出
+    note: document.getElementById("orderNote").value,
     draft_base64: draftBase64Data,
     signed_base64: signedBase64Data
   };
