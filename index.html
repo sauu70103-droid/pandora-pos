@@ -52,8 +52,6 @@
     <div>
       <label>收款人員</label>
       <select id="cashier">
-        <option value="櫃台人員A">櫃台人員A</option>
-        <option value="櫃台人員B">櫃台人員B</option>
       </select>
     </div>
     <div>
@@ -85,7 +83,6 @@
       </tr>
     </thead>
     <tbody id="cartBody">
-      <!-- 動態新增的列會出現在這裡 -->
     </tbody>
   </table>
 
@@ -93,7 +90,13 @@
     總計金額：NT$ <span id="totalAmount">0</span>
   </div>
 
-  <!-- 用於顯示顧客簽名，準備進行第二次截圖 -->
+  <div class="form-group" style="margin-bottom: 20px;">
+    <div style="flex: 100%;">
+      <label>整單備註</label>
+      <input type="text" id="orderNote" placeholder="如果有特殊狀況或調整事項，請填寫在此...">
+    </div>
+  </div>
+
   <div id="receiptSignature">
     <p>顧客簽名確認：</p>
     <img id="finalSignatureImg" src="" alt="顧客簽名">
@@ -102,7 +105,6 @@
 
 <button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
 
-<!-- 簽名板 Modal -->
 <div id="signatureModal">
   <div class="modal-content">
     <h2>請顧客簽名</h2>
@@ -114,7 +116,6 @@
   </div>
 </div>
 
-<!-- 引入前端邏輯 -->
 <script src="app.js"></script>
 </body>
 </html>
