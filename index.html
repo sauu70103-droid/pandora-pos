@@ -69,12 +69,12 @@
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
     /* ========================================= */
-    /* 專屬列印用收據版型 (徹底脫離網頁排版，極致穩定) */
+    /* 用 Fixed 包裝隱藏收據，徹底避免撐破畫面 */
     /* ========================================= */
     #printReceiptWrapper {
       position: fixed; 
       top: 0; 
-      left: 200vw; /* 將元素移出真實螢幕範圍外，絕對不會撐破排版 */
+      left: 200vw; 
       pointer-events: none; 
       z-index: -9999;
     }
@@ -216,7 +216,8 @@
         <tr>
           <th style="width: 50%;">消費項目 / 會員</th>
           <th style="text-align: center; width: 15%;">數量</th>
-          <th style="text-align: right; width: 35%;">金額 (師傅)</th>
+          <!-- 優化：將師傅改為老師 -->
+          <th style="text-align: right; width: 35%;">金額 (老師)</th>
         </tr>
       </thead>
       <tbody id="rcptItemsBody">
@@ -229,7 +230,6 @@
     </div>
     <div class="rcpt-divider"></div>
     
-    <!-- 更新後的專屬結語 -->
     <div class="rcpt-footer">
       💆‍♀️ 陪你一起美，陪你一起健康，<br>
       ✨ 若有任何情況歡迎隨時官方賴詢問。
