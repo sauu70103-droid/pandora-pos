@@ -74,11 +74,16 @@
     .admin-tools { background: #FDE8E8; border: 1px solid #E8B3B3; padding: 15px; border-radius: 8px; margin-top: 30px; }
     .admin-tools h3 { margin-top: 0; color: #B35B5B; }
     .admin-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-    .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1.1em;}
     .admin-btns button:hover { background: #B35B5B; color: white; }
 
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
+    /* 詳細報表專用樣式 */
+    .detail-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.95em; }
+    .detail-table th { background-color: #F4EDE4; border: 1px solid #E2D6C8; padding: 10px; color: var(--text-dark); }
+    .detail-table td { border: 1px solid #E2D6C8; padding: 10px; background-color: white; }
+    
     #printReceiptWrapper { position: fixed; top: 0; left: 200vw; pointer-events: none; z-index: -9999; }
     #printReceiptTemplate { width: 480px; background: #ffffff; padding: 40px; font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box; }
     .rcpt-header { text-align: center; margin-bottom: 20px; }
@@ -168,7 +173,7 @@
   <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
-      <h3>本日結帳總額 (不含作廢單)</h3>
+      <h3>本日結帳總額 (已自動扣除作廢單)</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
@@ -178,15 +183,19 @@
       <button id="filter-month" onclick="loadReport('month')">本月業績</button>
     </div>
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
+    
+    <!-- 老師分潤總覽 -->
     <div class="report-summary" id="reportSummary"></div>
+
+    <!-- 今日結帳詳細明細 (動態生成) -->
+    <div id="detailedReportContainer" style="display:none; margin-top: 30px;"></div>
 
     <!-- 防錯與作廢管理區 -->
     <div class="admin-tools">
-      <h3>⚠️ 單據作廢與超時調整</h3>
-      <p style="font-size:0.9em; color:#888; margin-top:0;">若結帳發生錯誤，請將原單據作廢，並返回結帳作業重新建單。作廢的單據不會計入業績。</p>
+      <h3>⚠️ 單據作廢管理</h3>
+      <p style="font-size:0.9em; color:#888; margin-top:0;">若結帳發生錯誤，請在此選擇日期並將原單據作廢，作廢後該單據將永久從清單與業績中移除。</p>
       <div class="admin-btns">
-        <button onclick="openVoidModal('today')">今日作廢查詢</button>
-        <button onclick="openVoidModal('custom')">超時操作 (自訂日期)</button>
+        <button onclick="openVoidModal()">依日期查詢並作廢</button>
       </div>
     </div>
   </div>
@@ -209,12 +218,12 @@
 <div id="voidModal" class="modal">
   <div class="modal-content">
     <h2 style="color: var(--text-dark); margin-top:0;">單據作廢管理</h2>
-    <div id="voidDateSelector" style="display:none; margin-bottom: 15px;">
-      <label>請選擇歷史查詢日期：</label>
+    <div id="voidDateSelector" style="margin-bottom: 15px;">
+      <label>請選擇要查詢的日期：</label>
       <input type="date" id="voidQueryDate" onchange="fetchVoidList()">
     </div>
     <div id="voidListContainer">
-      <p style="text-align:center; color:#888;">請選擇日期或等待讀取資料...</p>
+      <p style="text-align:center; color:#888;">請選擇日期...</p>
     </div>
     <div class="modal-btns" style="text-align: right;">
       <button class="btn-clear" onclick="document.getElementById('voidModal').style.display='none'">關閉</button>
