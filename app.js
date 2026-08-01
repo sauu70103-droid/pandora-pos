@@ -79,51 +79,52 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (詳細報表與資料過濾)
+// 店務報表 (詳細明細與防呆過濾)
 // ==========================================
 let allReportData = []; 
+let currentFilter = 'today';
+
 function loadReport(filterType) {
+  currentFilter = filterType;
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   document.getElementById('filter-' + filterType).classList.add('active');
   const summaryDiv = document.getElementById("reportSummary");
+  const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
 
+  // 如果陣列為空（例如作廢後被清空），就重新向雲端抓取
   if (allReportData.length === 0) {
-    summaryDiv.innerHTML = ""; loadingDiv.style.display = "block";
+    summaryDiv.innerHTML = ""; detailedBody.innerHTML = "";
+    loadingDiv.style.display = "block";
     const now = new Date();
     fetch(GAS_URL + "?month=" + String(now.getMonth() + 1).padStart(2, '0'))
       .then(res => res.json())
       .then(res => {
-        if(res.status === "success") { allReportData = res.data; processReportData(filterType); }
+        if(res.status === "success") { 
+          allReportData = res.data; 
+          processReportData(filterType); 
+        }
         loadingDiv.style.display = "none";
       }).catch(err => { loadingDiv.style.display = "none"; });
-  } else { processReportData(filterType); }
+  } else { 
+    processReportData(filterType); 
+  }
 }
 
 function processReportData(filterType) {
   const now = new Date();
   let techRevenue = {}; technicians.forEach(t => techRevenue[t] = 0);
   let todayTotal = 0; 
-
-  // 詳細報表的 HTML 結構準備
-  let detailedHTML = `<h3 style="margin-bottom:10px; color:var(--text-dark);">📝 今日結帳明細</h3>
-    <table class="detail-table">
-      <tr>
-        <th>時間 / 單號</th>
-        <th>會員</th>
-        <th>消費項目 (老師)</th>
-        <th>總金額</th>
-      </tr>`;
-  let hasDetail = false;
+  let detailedHTML = "";
 
   allReportData.forEach(row => {
-    // 【重要核心】如果標記為「作廢」，完全無視這筆資料！
+    // 【重點防呆】只要是作廢的，徹底跳過，完全不計入任何統計與明細
     if (row["單據狀態"] === "作廢") return; 
 
     const rowDate = new Date(row["結帳時間"]);
     let isMatch = false;
 
-    // 計算今日總額
+    // 計算今日總額 
     if (rowDate.toDateString() === now.toDateString()) {
       todayTotal += parseInt(row["總金額"]) || 0;
     }
@@ -135,39 +136,37 @@ function processReportData(filterType) {
       isMatch = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7);
     }
 
+    // 若符合日期區間，則計入老師業績並產生詳細表格
     if (isMatch) {
       let itemsStr = "";
       try {
         const items = JSON.parse(row["購買明細(JSON)"]);
         items.forEach(item => {
-          // 計算分潤
           if(techRevenue[item.technician] !== undefined) { techRevenue[item.technician] += parseInt(item.price) || 0; }
         });
-        // 準備詳細報表的字串
-        itemsStr = items.map(i => `${i.item_name} <span style="color:#888;">(${i.technician})</span>`).join("<br>");
-      } catch(e) {}
+        itemsStr = items.map(i => `${i.item_name}(${i.technician})`).join('<br>');
+      } catch(e) { itemsStr = "資料讀取錯誤"; }
 
-      // 如果選擇「今日業績」，則把這筆資料加入詳細報表
-      if (filterType === 'today') {
-        hasDetail = true;
-        const timeStr = `${rowDate.getHours().toString().padStart(2,'0')}:${rowDate.getMinutes().toString().padStart(2,'0')}`;
-        detailedHTML += `
-          <tr>
-            <td style="text-align:center;">${timeStr}<br><span style="font-size:0.8em; color:#999;">${row["交易單號"]}</span></td>
-            <td style="text-align:center; font-weight:bold;">${row["會員名稱"]}</td>
-            <td>${itemsStr}</td>
-            <td style="text-align:right; font-weight:bold; color:var(--primary-hover);">NT$ ${row["總金額"]}</td>
-          </tr>`;
-      }
+      const timeStr = `${String(rowDate.getHours()).padStart(2,'0')}:${String(rowDate.getMinutes()).padStart(2,'0')}`;
+      detailedHTML += `
+        <tr>
+          <td>${timeStr}</td>
+          <td>${row["會員名稱"]}</td>
+          <td style="font-size:0.9em; line-height:1.4;">${itemsStr}</td>
+          <td style="color:var(--danger-color); font-weight:bold;">$${row["總金額"]}</td>
+        </tr>
+      `;
     }
   });
-
-  detailedHTML += `</table>`;
 
   // 更新今日總額看板
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${todayTotal.toLocaleString()}`;
 
-  // 更新老師分潤區塊
+  // 更新詳細明細表格
+  const detailedBody = document.getElementById("detailedReportBody");
+  detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間尚無有效結帳明細</td></tr>`;
+
+  // 更新老師業績小卡
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   technicians.forEach(t => {
@@ -179,34 +178,24 @@ function processReportData(filterType) {
     }
   });
   if(!hasData) summaryDiv.innerHTML = "<div class='report-card' style='justify-content:center; color:#999;'>該區間尚無業績資料</div>";
-
-  // 更新下方詳細明細區塊
-  const detailContainer = document.getElementById("detailedReportContainer");
-  if (filterType === 'today' && hasDetail) {
-    detailContainer.innerHTML = detailedHTML;
-    detailContainer.style.display = "block";
-  } else {
-    detailContainer.style.display = "none";
-  }
 }
 
 // ==========================================
-// 統一單據作廢管理邏輯
+// 單據查詢與作廢管理邏輯
 // ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
-  // 預設選擇今天
   document.getElementById("voidQueryDate").value = new Date().toISOString().split('T')[0];
-  fetchVoidList(); 
+  document.getElementById("voidListContainer").innerHTML = '<p style="text-align:center; color:#888;">請點擊查詢載入單據...</p>';
 }
 
 function fetchVoidList() {
   const targetDateStr = document.getElementById("voidQueryDate").value;
-  if (!targetDateStr) return;
+  if (!targetDateStr) return alert("請先選擇日期！");
   const targetDate = new Date(targetDateStr);
   
   const container = document.getElementById("voidListContainer");
-  container.innerHTML = "讀取中，請稍候...";
+  container.innerHTML = "<p style='text-align:center;'>資料讀取中，請稍候...</p>";
   
   const reqMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
   
@@ -217,35 +206,37 @@ function fetchVoidList() {
         container.innerHTML = "";
         let hasData = false;
         res.data.forEach(row => {
+          // 【徹底隱藏】只要這筆訂單是作廢的，它就不會出現在這裡！完全消失！
+          if (row["單據狀態"] === "作廢") return; 
+
           const rowDate = new Date(row["結帳時間"]);
-          
-          // 【核心修改】：這裡嚴格檢查，只要是「作廢」就直接隱藏，絕不顯示在清單中
-          if (rowDate.toDateString() === targetDate.toDateString() && row["單據狀態"] !== "作廢") {
+          if (rowDate.toDateString() === targetDate.toDateString()) {
             hasData = true;
             const div = document.createElement("div");
-            div.style.cssText = "border: 1px solid #E2D6C8; padding:12px; margin-bottom:10px; border-radius:8px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
+            div.style.cssText = "border: 1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:6px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
             
             div.innerHTML = `
               <div>
-                <strong style="color:var(--text-dark); font-size:1.1em;">顧客：${row["會員名稱"]}</strong> <span style="color:#999; font-size:0.9em;">(單號：${row["交易單號"]})</span><br>
-                <span style="font-size:0.95em; color:#666;">結帳時間：${row["結帳時間"]} | 總額：NT$ ${row["總金額"]}</span>
+                <strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br>
+                <span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 金額：$${row["總金額"]}</span>
               </div>
               <div>
-                <button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">將此單作廢</button>
+                <button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">作廢此單</button>
               </div>
             `;
             container.appendChild(div);
           }
         });
-        if(!hasData) container.innerHTML = "<p style='text-align:center; color:#888; padding: 20px 0;'>該日目前沒有可以作廢的正常單據。</p>";
+        if(!hasData) container.innerHTML = "<p style='text-align:center; padding:20px; color:#999;'>該日無可作廢之正常單據</p>";
       }
     });
 }
 
 function executeVoid(orderId, checkoutTime) {
-  if (!confirm(`確定要作廢單號 ${orderId} 嗎？\n注意：作廢後該單據將完全消失，且不可復原！`)) return;
+  if (!confirm(`確定要作廢這筆單據嗎？作廢後將永遠從系統畫面中移除！`)) return;
   
-  document.getElementById("voidListContainer").innerHTML = "作廢處理中，請稍候...";
+  const container = document.getElementById("voidListContainer");
+  container.innerHTML = "<p style='text-align:center; font-weight:bold; color:var(--danger-color);'>作廢處理中，請勿關閉視窗...</p>";
   
   fetch(GAS_URL, {
     method: "POST",
@@ -254,15 +245,15 @@ function executeVoid(orderId, checkoutTime) {
   })
   .then(res => res.json())
   .then(result => {
-    alert(result.message);
-    // 成功作廢後，清空所有報表快取並重新抓取，確保資料最新！
+    alert("作廢成功！系統正在重新整理資料...");
+    // 【關鍵步驟】清空快取陣列，這樣再次讀取報表時，就會去雲端拿最新沒有這筆訂單的資料
     allReportData = []; 
-    fetchVoidList(); // 重新整理作廢清單(剛作廢的單會直接消失)
-    if(document.getElementById('content-report').classList.contains('active')) {
-      loadReport('today'); // 重新刷新背景的業績看板
-    }
+    // 重新載入剛才查詢的日期列表 (會發現那筆訂單徹底消失了)
+    fetchVoidList(); 
+    // 背景同步重新計算首頁報表
+    loadReport(currentFilter); 
   })
-  .catch(err => alert("處理失敗請重試"));
+  .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
 // ==========================================
