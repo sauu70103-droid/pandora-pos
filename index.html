@@ -19,7 +19,7 @@
 
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-dark); margin: 0; padding: 20px; overflow-x: hidden; }
     .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); position: relative; }
-    h1, h2 { text-align: center; color: var(--text-dark); }
+    h1, h2, h3 { text-align: center; color: var(--text-dark); }
     
     .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; }
     .nav-tabs button { background: #EFE8DF; color: var(--text-dark); border: none; padding: 12px 25px; font-size: 1.1em; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
@@ -63,27 +63,28 @@
     .report-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
     .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
     .report-controls button.active { background: var(--primary-color); color: white; }
-    .report-summary { display: flex; flex-direction: column; gap: 15px; }
+    
+    .report-summary { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; }
     .report-card span.amount { color: var(--primary-hover); font-size: 1.4em; }
     
     .dashboard-highlight { background: var(--primary-color); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
-    .dashboard-highlight h3 { margin: 0 0 10px 0; font-size: 1.2em; font-weight: normal; }
+    .dashboard-highlight h3 { margin: 0 0 10px 0; font-size: 1.2em; font-weight: normal; color: white;}
     .dashboard-highlight .big-number { font-size: 2.5em; font-weight: bold; margin: 0; }
 
-    .admin-tools { background: #FDE8E8; border: 1px solid #E8B3B3; padding: 15px; border-radius: 8px; margin-top: 30px; }
+    .admin-tools { background: #FDE8E8; border: 1px solid #E8B3B3; padding: 15px; border-radius: 8px; margin-top: 30px; text-align: center; }
     .admin-tools h3 { margin-top: 0; color: #B35B5B; }
-    .admin-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-    .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1.1em;}
+    .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em;}
     .admin-btns button:hover { background: #B35B5B; color: white; }
 
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
-    /* 詳細報表專用樣式 */
-    .detail-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.95em; }
-    .detail-table th { background-color: #F4EDE4; border: 1px solid #E2D6C8; padding: 10px; color: var(--text-dark); }
-    .detail-table td { border: 1px solid #E2D6C8; padding: 10px; background-color: white; }
-    
+    /* 詳細報表表格樣式 */
+    .detailed-table { width: 100%; font-size: 0.95em; }
+    .detailed-table th { background-color: #E2D6C8; }
+    .detailed-table td { background-color: #FFFFFF; padding: 10px; }
+    .detailed-table tr:nth-child(even) td { background-color: #FDFBF8; }
+
     #printReceiptWrapper { position: fixed; top: 0; left: 200vw; pointer-events: none; z-index: -9999; }
     #printReceiptTemplate { width: 480px; background: #ffffff; padding: 40px; font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box; }
     .rcpt-header { text-align: center; margin-bottom: 20px; }
@@ -173,7 +174,7 @@
   <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
-      <h3>本日結帳總額 (已自動扣除作廢單)</h3>
+      <h3>本日結帳總額</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
@@ -184,18 +185,35 @@
     </div>
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
     
-    <!-- 老師分潤總覽 -->
+    <!-- 老師業績統計 -->
     <div class="report-summary" id="reportSummary"></div>
 
-    <!-- 今日結帳詳細明細 (動態生成) -->
-    <div id="detailedReportContainer" style="display:none; margin-top: 30px;"></div>
+    <!-- 詳細明細對帳區塊 -->
+    <div id="detailedReportContainer" style="margin-bottom: 30px;">
+      <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">📋 詳細對帳明細</h3>
+      <div style="overflow-x: auto;">
+        <table class="detailed-table">
+          <thead>
+            <tr>
+              <th style="width:15%">時間</th>
+              <th style="width:20%">顧客</th>
+              <th style="width:45%">消費項目 (老師)</th>
+              <th style="width:20%">總金額</th>
+            </tr>
+          </thead>
+          <tbody id="detailedReportBody">
+            <!-- 動態產生 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- 防錯與作廢管理區 -->
     <div class="admin-tools">
-      <h3>⚠️ 單據作廢管理</h3>
-      <p style="font-size:0.9em; color:#888; margin-top:0;">若結帳發生錯誤，請在此選擇日期並將原單據作廢，作廢後該單據將永久從清單與業績中移除。</p>
+      <h3>⚠️ 單據作廢與調整</h3>
+      <p style="font-size:0.9em; color:#888; margin-top:0;">(已作廢的單據會徹底從系統紀錄中隱藏，不列入任何計算)</p>
       <div class="admin-btns">
-        <button onclick="openVoidModal()">依日期查詢並作廢</button>
+        <button onclick="openVoidModal()">📅 開啟單據查詢與作廢面板</button>
       </div>
     </div>
   </div>
@@ -217,16 +235,17 @@
 <!-- 作廢清單彈出視窗 -->
 <div id="voidModal" class="modal">
   <div class="modal-content">
-    <h2 style="color: var(--text-dark); margin-top:0;">單據作廢管理</h2>
-    <div id="voidDateSelector" style="margin-bottom: 15px;">
-      <label>請選擇要查詢的日期：</label>
-      <input type="date" id="voidQueryDate" onchange="fetchVoidList()">
+    <h2 style="color: var(--text-dark); margin-top:0; text-align: center;">單據查詢與作廢</h2>
+    <div id="voidDateSelector" style="margin-bottom: 20px; text-align: center; background:#FDE8E8; padding:15px; border-radius:8px;">
+      <label style="display:inline-block; margin-right:10px;">請選擇要查詢的日期：</label>
+      <input type="date" id="voidQueryDate" style="width:auto; display:inline-block;">
+      <button onclick="fetchVoidList()" style="background:#B35B5B; color:white; border:none; padding:10px 15px; border-radius:6px; cursor:pointer; margin-left:10px; font-weight:bold;">查詢單據</button>
     </div>
     <div id="voidListContainer">
-      <p style="text-align:center; color:#888;">請選擇日期...</p>
+      <p style="text-align:center; color:#888;">請選擇日期並點擊查詢...</p>
     </div>
-    <div class="modal-btns" style="text-align: right;">
-      <button class="btn-clear" onclick="document.getElementById('voidModal').style.display='none'">關閉</button>
+    <div class="modal-btns" style="text-align: center; margin-top: 25px;">
+      <button class="btn-clear" onclick="document.getElementById('voidModal').style.display='none'">關閉管理面板</button>
     </div>
   </div>
 </div>
