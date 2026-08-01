@@ -6,7 +6,6 @@
   <title>數位 POS 與分潤結帳系統</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
-    /* 奶茶色主題配色 (介面用) */
     :root {
       --bg-color: #F7F3EE; 
       --container-bg: #FFFFFF;
@@ -46,16 +45,17 @@
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     th, td { border: 1px solid var(--border-color); padding: 12px; text-align: center; }
     th { background-color: #F4EDE4; color: var(--text-dark); }
-    .btn-remove { background: var(--danger-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    .btn-remove, .btn-void { background: var(--danger-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
     
     .total-section { text-align: right; font-size: 1.3em; font-weight: bold; margin-bottom: 20px; color: var(--text-dark); background: #F9F5F0; padding: 15px; border-radius: 8px; }
     .btn-submit { background: var(--primary-color); color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; }
     .btn-submit:hover { background: var(--primary-hover); }
     .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
 
-    #signatureModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(92, 74, 61, 0.6); justify-content: center; align-items: center; z-index: 2000; }
-    .modal-content { background: white; padding: 20px; border-radius: 12px; text-align: center; width: 90%; max-width: 500px; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(92, 74, 61, 0.6); justify-content: center; align-items: center; z-index: 2000; }
+    .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;}
     canvas { border: 2px dashed var(--border-color); background: #fafafa; cursor: crosshair; margin-bottom: 15px; width: 100%; border-radius: 8px; }
+    .modal-btns { text-align: center; margin-top: 15px; }
     .modal-btns button { padding: 10px 20px; margin: 0 5px; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; }
     .btn-clear { background: #E2D6C8; color: var(--text-dark); }
     .btn-confirm { background: var(--success-color); color: white; }
@@ -66,26 +66,21 @@
     .report-summary { display: flex; flex-direction: column; gap: 15px; }
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; }
     .report-card span.amount { color: var(--primary-hover); font-size: 1.4em; }
+    
+    .dashboard-highlight { background: var(--primary-color); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; }
+    .dashboard-highlight h3 { margin: 0 0 10px 0; font-size: 1.2em; font-weight: normal; }
+    .dashboard-highlight .big-number { font-size: 2.5em; font-weight: bold; margin: 0; }
+
+    .admin-tools { background: #FDE8E8; border: 1px solid #E8B3B3; padding: 15px; border-radius: 8px; margin-top: 30px; }
+    .admin-tools h3 { margin-top: 0; color: #B35B5B; }
+    .admin-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+    .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    .admin-btns button:hover { background: #B35B5B; color: white; }
+
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
-    /* ========================================= */
-    /* 用 Fixed 包裝隱藏收據，徹底避免撐破畫面 */
-    /* ========================================= */
-    #printReceiptWrapper {
-      position: fixed; 
-      top: 0; 
-      left: 200vw; 
-      pointer-events: none; 
-      z-index: -9999;
-    }
-    #printReceiptTemplate {
-      width: 480px; 
-      background: #ffffff; 
-      padding: 40px;
-      font-family: 'Microsoft JhengHei', sans-serif; 
-      color: #111; 
-      box-sizing: border-box;
-    }
+    #printReceiptWrapper { position: fixed; top: 0; left: 200vw; pointer-events: none; z-index: -9999; }
+    #printReceiptTemplate { width: 480px; background: #ffffff; padding: 40px; font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box; }
     .rcpt-header { text-align: center; margin-bottom: 20px; }
     .rcpt-header h2 { margin: 0; font-size: 28px; font-weight: bold; color: #222; }
     .rcpt-divider { border-top: 2px dashed #333; margin: 20px 0; }
@@ -107,9 +102,10 @@
   
   <div class="nav-tabs">
     <button id="tab-checkout" class="active" onclick="switchTab('checkout')">結帳作業</button>
-    <button id="tab-report" onclick="switchTab('report')">店務報表</button>
+    <button id="tab-report" onclick="switchTab('report')">店務與對帳報表</button>
   </div>
 
+  <!-- 結帳頁面 -->
   <div id="content-checkout" class="tab-content active">
     <div>
       <h1>數位 POS 結帳單</h1>
@@ -156,9 +152,7 @@
         <tbody id="cartBody"></tbody>
       </table>
 
-      <div class="total-section">
-        總計金額：NT$ <span id="totalAmount">0</span>
-      </div>
+      <div class="total-section">總計金額：NT$ <span id="totalAmount">0</span></div>
 
       <div class="form-group" style="margin-bottom: 20px;">
         <div style="flex: 100%;">
@@ -171,23 +165,37 @@
     <button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
   </div>
 
+  <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
-    <h1>店務業績報表</h1>
-    <p style="text-align: center; color: #777;">資料讀取自雲端資料庫，可協助核對帳目與計算老師分潤。</p>
+    <div class="dashboard-highlight">
+      <h3>本日結帳總額 (不含作廢單)</h3>
+      <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
+    </div>
+
     <div class="report-controls">
-      <button id="filter-today" class="active" onclick="loadReport('today')">今日</button>
-      <button id="filter-week" onclick="loadReport('week')">本週</button>
-      <button id="filter-month" onclick="loadReport('month')">本月</button>
+      <button id="filter-today" class="active" onclick="loadReport('today')">今日業績</button>
+      <button id="filter-week" onclick="loadReport('week')">本週業績</button>
+      <button id="filter-month" onclick="loadReport('month')">本月業績</button>
     </div>
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
     <div class="report-summary" id="reportSummary"></div>
+
+    <!-- 防錯與作廢管理區 -->
+    <div class="admin-tools">
+      <h3>⚠️ 單據作廢與超時調整</h3>
+      <p style="font-size:0.9em; color:#888; margin-top:0;">若結帳發生錯誤，請將原單據作廢，並返回結帳作業重新建單。作廢的單據不會計入業績。</p>
+      <div class="admin-btns">
+        <button onclick="openVoidModal('today')">今日作廢查詢</button>
+        <button onclick="openVoidModal('custom')">超時操作 (自訂日期)</button>
+      </div>
+    </div>
   </div>
 
 </div>
 
 <!-- 簽名板彈出視窗 -->
-<div id="signatureModal">
-  <div class="modal-content">
+<div id="signatureModal" class="modal">
+  <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
     <canvas id="sigCanvas" width="400" height="200"></canvas>
     <div class="modal-btns">
@@ -197,13 +205,27 @@
   </div>
 </div>
 
-<!-- ========================================= -->
-<!-- 用 Fixed 包裝隱藏收據，徹底避免撐破畫面 -->
-<!-- ========================================= -->
+<!-- 作廢清單彈出視窗 -->
+<div id="voidModal" class="modal">
+  <div class="modal-content">
+    <h2 style="color: var(--text-dark); margin-top:0;">單據作廢管理</h2>
+    <div id="voidDateSelector" style="display:none; margin-bottom: 15px;">
+      <label>請選擇歷史查詢日期：</label>
+      <input type="date" id="voidQueryDate" onchange="fetchVoidList()">
+    </div>
+    <div id="voidListContainer">
+      <p style="text-align:center; color:#888;">請選擇日期或等待讀取資料...</p>
+    </div>
+    <div class="modal-btns" style="text-align: right;">
+      <button class="btn-clear" onclick="document.getElementById('voidModal').style.display='none'">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- 隱藏的收據排版 -->
 <div id="printReceiptWrapper">
   <div id="printReceiptTemplate">
     <div class="rcpt-header">
-      <!-- 加入你的 Logo 圖片，設定置中與適當大小 -->
       <img src="219.jpg" alt="Pandora Logo" style="max-width: 100px; display: block; margin: 0 auto 10px;">
       <h2>潘朵拉美學院</h2>
     </div>
@@ -221,21 +243,15 @@
           <th style="text-align: right; width: 35%;">金額 (老師)</th>
         </tr>
       </thead>
-      <tbody id="rcptItemsBody">
-        <!-- 內容由 JS 動態填入 -->
-      </tbody>
+      <tbody id="rcptItemsBody"></tbody>
     </table>
     <div class="rcpt-divider"></div>
-    <div class="rcpt-total">
-      總計金額： <span id="rcptTotalAmount"></span>
-    </div>
+    <div class="rcpt-total">總計金額： <span id="rcptTotalAmount"></span></div>
     <div class="rcpt-divider"></div>
-    
     <div class="rcpt-footer">
       ❤️陪你一起美·陪你一起健康❤️<br>
       ✨ 若有任何情況歡迎隨時官方賴詢問。
     </div>
-    
     <div id="rcptSignatureArea">
       <p style="margin:0; font-size:14px; text-align:right;">顧客簽名：</p>
       <img id="rcptSignatureImg" src="" alt="">
