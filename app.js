@@ -9,7 +9,7 @@ let currentOrderId = "";
 let currentTimeString = "";
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定"];
 
-// 更新指定費為單一自訂欄位
+// 更新指定費為單一自訂欄位，並加入儲值金(儲值)與儲值金(抵扣)
 const menuData = {
   "💅 美甲-手部": {
     "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", 
@@ -61,7 +61,7 @@ const menuData = {
     "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299
   },
   "💰 定金及加費": {
-    "定金": 500, "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100
+    "定金": 500, "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*"
   }
 };
 
@@ -149,11 +149,19 @@ function removeCartItem(btn) {
   calculateTotal();
 }
 
+// 【自動判斷扣抵】計算總計金額時，若項目包含「抵扣」，則自動轉為減法
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
+    const sName = row.querySelector(".item-name").value;
     let price = parseInt(row.querySelector(".item-price").value) || 0;
-    total += price;
+    
+    // 如果項目名稱包含「抵扣」，則確保將金額扣除
+    if (sName.includes("抵扣")) {
+      total -= Math.abs(price);
+    } else {
+      total += price;
+    }
   });
   document.getElementById("totalAmount").innerText = total;
   return total;
@@ -232,7 +240,7 @@ function processReportData(filterType) {
   summaryDiv.innerHTML = "";
   let hasData = false;
   technicians.forEach(t => {
-    if(techRevenue[t] > 0 || t !== "無指定") {
+    if(techRevenue[t] !== 0 || t !== "無指定") {
       hasData = true;
       const card = document.createElement("div");
       card.className = "report-card";
@@ -298,7 +306,13 @@ function preparePrintReceipt() {
   document.querySelectorAll("#cartBody tr").forEach(row => {
     const sName = row.querySelector(".item-name").value;
     const sTech = row.querySelector(".item-tech").value;
-    const sPrice = row.querySelector(".item-price").value;
+    const sPrice = parseInt(row.querySelector(".item-price").value) || 0;
+    
+    // 【收據顯示優化】如果名稱包含「抵扣」，則在收據上加上負號顯示
+    let displayPrice = "$" + sPrice;
+    if (sName.includes("抵扣")) {
+      displayPrice = "-$" + Math.abs(sPrice);
+    }
     
     itemsBody.innerHTML += `
       <tr>
@@ -308,7 +322,7 @@ function preparePrintReceipt() {
         </td>
         <td style="text-align: center;">1</td>
         <td style="text-align: right;">
-          <div class="rcpt-item-title">$${sPrice}</div>
+          <div class="rcpt-item-title">${displayPrice}</div>
           <div class="rcpt-item-desc">(${sTech})</div>
         </td>
       </tr>
@@ -332,9 +346,8 @@ async function startCheckout() {
   btn.innerText = "處理收據排版中...";
 
   try {
-    preparePrintReceipt(); // 將資料填入隱藏版收據
+    preparePrintReceipt(); 
 
-    // 針對隱藏版乾淨收據進行截圖，速度極快且畫質清晰
     const receiptTemplate = document.getElementById("printReceiptTemplate");
     const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
     draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8);
@@ -355,14 +368,12 @@ async function confirmSignature() {
 
   document.getElementById("signatureModal").style.display = "none";
   
-  // 將顧客簽名填入隱藏版收據的下方
   const sigImg = document.getElementById("rcptSignatureImg");
   sigImg.src = canvas.toDataURL("image/png");
   document.getElementById("rcptSignatureArea").style.display = "block";
 
   document.getElementById("btnGenerate").innerText = "最終排版產生中...";
 
-  // 針對含有簽名的完整隱藏版收據進行最後截圖
   const receiptTemplate = document.getElementById("printReceiptTemplate");
   const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
   signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8);
@@ -375,10 +386,18 @@ function submitToGAS() {
 
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => {
+    const sName = row.querySelector(".item-name").value;
+    let sPrice = parseInt(row.querySelector(".item-price").value) || 0;
+    
+    // 【資料庫紀錄優化】如果項目是抵扣，確保存入 Google Sheet 的數字是負數
+    if (sName.includes("抵扣")) {
+      sPrice = -Math.abs(sPrice);
+    }
+
     cartItems.push({
-      item_name: row.querySelector(".item-name").value,
+      item_name: sName,
       technician: row.querySelector(".item-tech").value,
-      price: parseInt(row.querySelector(".item-price").value) || 0
+      price: sPrice
     });
   });
 
