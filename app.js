@@ -311,8 +311,9 @@ function preparePrintReceipt() {
     itemsBody.innerHTML += `
       <tr>
         <td>
-          <div class="rcpt-item-title">${memberName}</div>
-          <div class="rcpt-item-desc">${sName}</div>
+          <!-- 優化：字體大小對調，將 sName (項目) 設定為大字體 title，memberName (會員) 設定為小字體 desc -->
+          <div class="rcpt-item-title">${sName}</div>
+          <div class="rcpt-item-desc">${memberName}</div>
         </td>
         <td style="text-align: center;">1</td>
         <td style="text-align: right;">
