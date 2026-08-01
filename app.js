@@ -9,7 +9,6 @@ let currentOrderId = "";
 let currentTimeString = "";
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定"];
 
-// 更新指定費為單一自訂欄位，並加入儲值金(儲值)與儲值金(抵扣)
 const menuData = {
   "💅 美甲-手部": {
     "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", 
@@ -149,14 +148,12 @@ function removeCartItem(btn) {
   calculateTotal();
 }
 
-// 【自動判斷扣抵】計算總計金額時，若項目包含「抵扣」，則自動轉為減法
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
     const sName = row.querySelector(".item-name").value;
     let price = parseInt(row.querySelector(".item-price").value) || 0;
     
-    // 如果項目名稱包含「抵扣」，則確保將金額扣除
     if (sName.includes("抵扣")) {
       total -= Math.abs(price);
     } else {
@@ -308,11 +305,8 @@ function preparePrintReceipt() {
     const sTech = row.querySelector(".item-tech").value;
     const sPrice = parseInt(row.querySelector(".item-price").value) || 0;
     
-    // 【收據顯示優化】如果名稱包含「抵扣」，則在收據上加上負號顯示
     let displayPrice = "$" + sPrice;
-    if (sName.includes("抵扣")) {
-      displayPrice = "-$" + Math.abs(sPrice);
-    }
+    if (sName.includes("抵扣")) displayPrice = "-$" + Math.abs(sPrice);
     
     itemsBody.innerHTML += `
       <tr>
@@ -361,18 +355,26 @@ async function startCheckout() {
   }
 }
 
+// 【修復簽名不見的核心函式】加入了強制等待機制
 async function confirmSignature() {
   const blank = document.createElement('canvas');
   blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
 
   document.getElementById("signatureModal").style.display = "none";
+  document.getElementById("btnGenerate").innerText = "最終排版產生中...";
   
   const sigImg = document.getElementById("rcptSignatureImg");
-  sigImg.src = canvas.toDataURL("image/png");
-  document.getElementById("rcptSignatureArea").style.display = "block";
+  const sigArea = document.getElementById("rcptSignatureArea");
 
-  document.getElementById("btnGenerate").innerText = "最終排版產生中...";
+  // 使用 Promise 確保圖片完全載入，並強迫瀏覽器等待 100 毫秒完成排版更新
+  await new Promise((resolve) => {
+    sigImg.onload = () => {
+      sigArea.style.display = "block";
+      setTimeout(resolve, 100); 
+    };
+    sigImg.src = canvas.toDataURL("image/png");
+  });
 
   const receiptTemplate = document.getElementById("printReceiptTemplate");
   const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
@@ -389,7 +391,6 @@ function submitToGAS() {
     const sName = row.querySelector(".item-name").value;
     let sPrice = parseInt(row.querySelector(".item-price").value) || 0;
     
-    // 【資料庫紀錄優化】如果項目是抵扣，確保存入 Google Sheet 的數字是負數
     if (sName.includes("抵扣")) {
       sPrice = -Math.abs(sPrice);
     }
@@ -426,7 +427,7 @@ function submitToGAS() {
       alert("結帳成功！清晰版收據已存入雲端。");
       location.reload(); 
     } else {
-      alert("儲存失敗：" + result.message);
+      alert("儲存回報異常：" + result.message);
       resetBtn();
     }
   })
