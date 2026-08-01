@@ -6,13 +6,13 @@
   <title>數位 POS 與分潤結帳系統</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
-    /* 奶茶色主題配色 */
+    /* 奶茶色主題配色 (介面用) */
     :root {
-      --bg-color: #F7F3EE; /* 淺奶茶背景 */
+      --bg-color: #F7F3EE; 
       --container-bg: #FFFFFF;
-      --primary-color: #C8A98B; /* 主色調：奶茶色 */
+      --primary-color: #C8A98B; 
       --primary-hover: #B59373;
-      --text-dark: #5C4A3D; /* 深棕色文字 */
+      --text-dark: #5C4A3D; 
       --border-color: #E2D6C8;
       --danger-color: #D27A7A;
       --success-color: #88A985;
@@ -22,56 +22,44 @@
     .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); }
     h1, h2 { text-align: center; color: var(--text-dark); }
     
-    /* 分頁導覽列 */
     .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; }
     .nav-tabs button { background: #EFE8DF; color: var(--text-dark); border: none; padding: 12px 25px; font-size: 1.1em; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
     .nav-tabs button.active { background: var(--primary-color); color: white; }
-
-    /* 區塊隱藏與顯示 */
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* 表單與輸入框樣式 */
     .form-group { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
     .form-group > div { flex: 1; min-width: 150px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--text-dark); }
     input, select { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; background-color: #FCFAFA; color: var(--text-dark); }
     input:focus, select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 5px rgba(200, 169, 139, 0.5); }
 
-    /* 大項按鈕 (Menu) */
     .category-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
     .btn-category { flex: 1 1 calc(25% - 10px); background: #FAF5F0; border: 1px solid var(--primary-color); color: var(--text-dark); padding: 12px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: bold; transition: 0.2s; text-align: center; }
     .btn-category:hover, .btn-category.selected { background: var(--primary-color); color: white; }
 
-    /* 細項按鈕 (Sub-items) */
     #subItemContainer { background: #FDFBF8; border: 1px dashed var(--primary-color); padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; }
     .sub-item-grid { display: flex; flex-wrap: wrap; gap: 10px; }
     .btn-subitem { background: white; border: 1px solid var(--border-color); color: var(--text-dark); padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: 0.2s; }
     .btn-subitem:hover { background: var(--primary-hover); color: white; border-color: var(--primary-hover); }
 
-    /* 購物車明細清單 */
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     th, td { border: 1px solid var(--border-color); padding: 12px; text-align: center; }
     th { background-color: #F4EDE4; color: var(--text-dark); }
     .btn-remove { background: var(--danger-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
     
-    /* 總計與送出按鈕 */
     .total-section { text-align: right; font-size: 1.3em; font-weight: bold; margin-bottom: 20px; color: var(--text-dark); background: #F9F5F0; padding: 15px; border-radius: 8px; }
     .btn-submit { background: var(--primary-color); color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; transition: 0.3s; }
     .btn-submit:hover { background: var(--primary-hover); }
     .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
 
-    /* 簽名板 */
-    #signatureModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(92, 74, 61, 0.6); justify-content: center; align-items: center; z-index: 1000; }
+    #signatureModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(92, 74, 61, 0.6); justify-content: center; align-items: center; z-index: 2000; }
     .modal-content { background: white; padding: 20px; border-radius: 12px; text-align: center; width: 90%; max-width: 500px; }
     canvas { border: 2px dashed var(--border-color); background: #fafafa; cursor: crosshair; margin-bottom: 15px; width: 100%; border-radius: 8px; }
     .modal-btns button { padding: 10px 20px; margin: 0 5px; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; }
     .btn-clear { background: #E2D6C8; color: var(--text-dark); }
     .btn-confirm { background: var(--success-color); color: white; }
-    #receiptSignature { display: none; margin-top: 20px; text-align: right; }
-    #receiptSignature img { max-width: 200px; border-bottom: 1px solid var(--text-dark); }
 
-    /* 報表區塊樣式 */
     .report-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
     .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
     .report-controls button.active { background: var(--primary-color); color: white; }
@@ -79,23 +67,43 @@
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; }
     .report-card span.amount { color: var(--primary-hover); font-size: 1.4em; }
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
+
+    /* ========================================= */
+    /* 專屬列印用收據版型 (隱藏在背景，僅供截圖使用) */
+    /* ========================================= */
+    #printReceiptTemplate {
+      position: absolute; left: 0; top: 0; z-index: -1000;
+      width: 480px; background: #ffffff; padding: 40px;
+      font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box;
+    }
+    .rcpt-header { text-align: center; margin-bottom: 20px; }
+    .rcpt-header h2 { margin: 0; font-size: 28px; font-weight: bold; color: #222; }
+    .rcpt-header p { margin: 10px 0 0 0; font-size: 14px; color: #555; letter-spacing: 2px; }
+    .rcpt-divider { border-top: 2px dashed #333; margin: 20px 0; }
+    .rcpt-info-row { display: flex; justify-content: space-between; margin: 12px 0; font-size: 15px; }
+    .rcpt-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .rcpt-table th { border-bottom: 1px solid #333; padding-bottom: 10px; text-align: left; font-size: 15px; }
+    .rcpt-table td { padding: 15px 0; vertical-align: top; }
+    .rcpt-item-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+    .rcpt-item-desc { font-size: 13px; color: #666; }
+    .rcpt-total { text-align: right; font-size: 22px; font-weight: bold; margin: 20px 0; }
+    .rcpt-footer { text-align: center; font-size: 14px; color: #555; line-height: 1.8; margin-top: 30px; }
+    #rcptSignatureArea { text-align: right; display: none; }
+    #rcptSignatureArea img { max-width: 150px; border-bottom: 1px solid #000; }
   </style>
 </head>
 <body>
 
 <div class="container">
   
-  <!-- 分頁導覽列 -->
   <div class="nav-tabs">
     <button id="tab-checkout" class="active" onclick="switchTab('checkout')">結帳作業</button>
     <button id="tab-report" onclick="switchTab('report')">店務報表</button>
   </div>
 
-  <!-- 分頁一：結帳作業區塊 -->
   <div id="content-checkout" class="tab-content active">
-    <div id="receiptArea">
+    <div>
       <h1>數位 POS 結帳單</h1>
-      
       <div class="form-group">
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
@@ -119,15 +127,11 @@
       </div>
 
       <h2>選擇服務項目</h2>
-      <div class="category-grid" id="categoryGrid">
-        <!-- JS 動態生成大項按鈕 -->
-      </div>
+      <div class="category-grid" id="categoryGrid"></div>
       
       <div id="subItemContainer">
         <h4 style="margin-top: 0; color: var(--primary-hover);">請選擇細項 (點擊加入明細)</h4>
-        <div class="sub-item-grid" id="subItemGrid">
-          <!-- JS 動態生成細項按鈕 -->
-        </div>
+        <div class="sub-item-grid" id="subItemGrid"></div>
       </div>
 
       <h2>購買明細</h2>
@@ -140,9 +144,7 @@
             <th>操作</th>
           </tr>
         </thead>
-        <tbody id="cartBody">
-          <!-- 購物車內容 -->
-        </tbody>
+        <tbody id="cartBody"></tbody>
       </table>
 
       <div class="total-section">
@@ -155,32 +157,21 @@
           <input type="text" id="orderNote" placeholder="如果有特殊狀況或調整事項，請填寫在此...">
         </div>
       </div>
-
-      <div id="receiptSignature">
-        <p>顧客簽名確認：</p>
-        <img id="finalSignatureImg" src="" alt="顧客簽名">
-      </div>
     </div>
     
     <button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
   </div>
 
-  <!-- 分頁二：店務報表區塊 -->
   <div id="content-report" class="tab-content">
     <h1>店務業績報表</h1>
     <p style="text-align: center; color: #777;">資料讀取自雲端資料庫，可協助核對帳目與計算老師分潤。</p>
-    
     <div class="report-controls">
       <button id="filter-today" class="active" onclick="loadReport('today')">今日</button>
       <button id="filter-week" onclick="loadReport('week')">本週</button>
       <button id="filter-month" onclick="loadReport('month')">本月</button>
     </div>
-
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
-
-    <div class="report-summary" id="reportSummary">
-      <!-- JS 動態插入老師業績卡片 -->
-    </div>
+    <div class="report-summary" id="reportSummary"></div>
   </div>
 
 </div>
@@ -194,6 +185,46 @@
       <button class="btn-clear" onclick="clearCanvas()">清除重簽</button>
       <button class="btn-confirm" onclick="confirmSignature()">確認簽名並結帳</button>
     </div>
+  </div>
+</div>
+
+<!-- ========================================= -->
+<!-- 隱藏的收據排版範本 (專供 html2canvas 截圖用) -->
+<!-- ========================================= -->
+<div id="printReceiptTemplate">
+  <div class="rcpt-header">
+    <h2>潘朵拉美學院</h2>
+  </div>
+  <div class="rcpt-divider"></div>
+  <div class="rcpt-info-row"><span>交易單號：</span><span id="rcptOrderId"></span></div>
+  <div class="rcpt-info-row"><span>結帳時間：</span><span id="rcptTime"></span></div>
+  <div class="rcpt-info-row"><span>結帳方式 💰：</span><span id="rcptPayMethod"></span></div>
+  <div class="rcpt-info-row"><span>經手人員 👤：</span><span id="rcptCashier"></span></div>
+  <div class="rcpt-divider"></div>
+  <table class="rcpt-table">
+    <thead>
+      <tr>
+        <th style="width: 50%;">消費項目 / 會員</th>
+        <th style="text-align: center; width: 15%;">數量</th>
+        <th style="text-align: right; width: 35%;">金額 (師傅)</th>
+      </tr>
+    </thead>
+    <tbody id="rcptItemsBody">
+      <!-- 內容由 JS 動態填入 -->
+    </tbody>
+  </table>
+  <div class="rcpt-divider"></div>
+  <div class="rcpt-total">
+    總計金額： <span id="rcptTotalAmount"></span>
+  </div>
+  <div class="rcpt-divider"></div>
+  <div class="rcpt-footer">
+    💆‍♀️ 陪你一起美，陪你一起健康，<br>
+    ✨ 若有任何情況歡迎隨時官方賴詢問。<br><br>
+  </div>
+  <div id="rcptSignatureArea">
+    <p style="margin:0; font-size:14px; text-align:right;">顧客簽名：</p>
+    <img id="rcptSignatureImg" src="" alt="">
   </div>
 </div>
 
