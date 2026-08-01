@@ -5,9 +5,11 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD
 
 let draftBase64Data = "";
 let signedBase64Data = "";
+let currentOrderId = "";
+let currentTimeString = "";
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定"];
 
-// 完整菜單結構 (帶入大項、細項與價格，"*"代表可自訂金額)
+// 更新指定費為單一自訂欄位
 const menuData = {
   "💅 美甲-手部": {
     "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", 
@@ -59,7 +61,7 @@ const menuData = {
     "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299
   },
   "💰 定金及加費": {
-    "定金": 500, "指定費": 100, "指定費": 200, "服務費": "*", "加班費": 200, "年節服務費": 100
+    "定金": 500, "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100
   }
 };
 
@@ -74,13 +76,9 @@ window.onload = () => {
 function switchTab(tabName) {
   document.querySelectorAll('.nav-tabs button').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  
   document.getElementById('tab-' + tabName).classList.add('active');
   document.getElementById('content-' + tabName).classList.add('active');
-
-  if (tabName === 'report') {
-    loadReport('today'); // 切換到報表時預設載入今日資料
-  }
+  if (tabName === 'report') loadReport('today'); 
 }
 
 function initCashierOptions() {
@@ -130,10 +128,7 @@ function renderSubItems(category) {
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
-
   const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
-  
-  // 判斷是否為自訂金額
   const isEditable = (itemPrice === "*");
   const inputHTML = isEditable 
     ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">`
@@ -167,21 +162,18 @@ function calculateTotal() {
 // ==========================================
 // 店務報表 (分潤計算) 邏輯
 // ==========================================
-let allReportData = []; // 暫存撈回來的資料
+let allReportData = []; 
 
 function loadReport(filterType) {
-  // 切換按鈕樣式
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   document.getElementById('filter-' + filterType).classList.add('active');
 
   const summaryDiv = document.getElementById("reportSummary");
   const loadingDiv = document.getElementById("loadingReport");
 
-  // 如果資料還沒撈過，發送 API 請求撈取本月所有資料
   if (allReportData.length === 0) {
     summaryDiv.innerHTML = "";
     loadingDiv.style.display = "block";
-    
     const now = new Date();
     const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
 
@@ -201,15 +193,12 @@ function loadReport(filterType) {
         loadingDiv.style.display = "none";
       });
   } else {
-    // 已經有暫存資料，直接過濾運算
     processReportData(filterType);
   }
 }
 
 function processReportData(filterType) {
   const now = new Date();
-  
-  // 初始化每位老師的業績字典
   let techRevenue = {};
   technicians.forEach(t => techRevenue[t] = 0);
 
@@ -217,20 +206,17 @@ function processReportData(filterType) {
     const rowDate = new Date(row["結帳時間"]);
     let isMatch = false;
 
-    // 判斷日期是否符合篩選條件
     if (filterType === 'today') {
       isMatch = (rowDate.toDateString() === now.toDateString());
     } else if (filterType === 'month') {
       isMatch = (rowDate.getMonth() === now.getMonth() && rowDate.getFullYear() === now.getFullYear());
     } else if (filterType === 'week') {
-      // 簡單的本週判定 (過去7天內)
       const diffTime = Math.abs(now - rowDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
       isMatch = (diffDays <= 7);
     }
 
     if (isMatch) {
-      // 拆解購買明細 JSON
       try {
         const items = JSON.parse(row["購買明細(JSON)"]);
         items.forEach(item => {
@@ -238,14 +224,12 @@ function processReportData(filterType) {
             techRevenue[item.technician] += parseInt(item.price) || 0;
           }
         });
-      } catch(e) { console.error("JSON 解析錯誤:", e); }
+      } catch(e) {}
     }
   });
 
-  // 渲染結果卡片
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = "";
-  
   let hasData = false;
   technicians.forEach(t => {
     if(techRevenue[t] > 0 || t !== "無指定") {
@@ -276,7 +260,7 @@ function draw(e) {
   const clientY = e.clientY || e.touches[0].clientY;
   ctx.lineWidth = 3;
   ctx.lineCap = "round";
-  ctx.strokeStyle = "#5C4A3D";
+  ctx.strokeStyle = "#000";
   ctx.lineTo(clientX - rect.left, clientY - rect.top);
   ctx.stroke();
   ctx.beginPath();
@@ -291,37 +275,76 @@ canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
 // ==========================================
-// 結帳與上傳雲端核心邏輯
+// 核心：收據排版填寫與快速截圖上傳
 // ==========================================
+function preparePrintReceipt() {
+  const now = new Date();
+  const pad = num => String(num).padStart(2, '0');
+  
+  if (!currentOrderId) {
+    currentTimeString = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    currentOrderId = `F${now.getTime()}`;
+  }
+
+  const memberName = document.getElementById("memberName").value.trim();
+  document.getElementById("rcptOrderId").innerText = currentOrderId;
+  document.getElementById("rcptTime").innerText = currentTimeString;
+  document.getElementById("rcptPayMethod").innerText = document.getElementById("paymentMethod").value;
+  document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
+
+  const itemsBody = document.getElementById("rcptItemsBody");
+  itemsBody.innerHTML = "";
+  
+  document.querySelectorAll("#cartBody tr").forEach(row => {
+    const sName = row.querySelector(".item-name").value;
+    const sTech = row.querySelector(".item-tech").value;
+    const sPrice = row.querySelector(".item-price").value;
+    
+    itemsBody.innerHTML += `
+      <tr>
+        <td>
+          <div class="rcpt-item-title">${memberName}</div>
+          <div class="rcpt-item-desc">${sName}</div>
+        </td>
+        <td style="text-align: center;">1</td>
+        <td style="text-align: right;">
+          <div class="rcpt-item-title">$${sPrice}</div>
+          <div class="rcpt-item-desc">(${sTech})</div>
+        </td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
+}
+
 async function startCheckout() {
   const memberName = document.getElementById("memberName").value.trim();
   if (!memberName) return alert("請輸入會員名稱！");
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
-
-  // 檢查是否有尚未輸入金額的自訂項目
+  
   let priceMissing = false;
-  document.querySelectorAll(".item-price").forEach(input => {
-    if(input.value === "") priceMissing = true;
-  });
+  document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
 
   const btn = document.getElementById("btnGenerate");
   btn.disabled = true;
-  btn.innerText = "處理截圖中...";
+  btn.innerText = "處理收據排版中...";
 
   try {
-    document.querySelectorAll(".btn-remove").forEach(el => el.style.display = "none");
-    const receiptArea = document.getElementById("receiptArea");
-    const draftCanvas = await html2canvas(receiptArea, { scale: 1.5, backgroundColor: "#F7F3EE" });
-    draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.7);
+    preparePrintReceipt(); // 將資料填入隱藏版收據
+
+    // 針對隱藏版乾淨收據進行截圖，速度極快且畫質清晰
+    const receiptTemplate = document.getElementById("printReceiptTemplate");
+    const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
+    draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8);
     
     document.getElementById("signatureModal").style.display = "flex";
     btn.innerText = "等待顧客簽名...";
   } catch (err) {
-    alert("截圖發生錯誤，請重試！");
-    btn.disabled = false;
-    btn.innerText = "產生確認單並簽名";
-    document.querySelectorAll(".btn-remove").forEach(el => el.style.display = "inline-block");
+    alert("排版截圖發生錯誤，請重試！");
+    console.error(err);
+    resetBtn();
   }
 }
 
@@ -331,23 +354,24 @@ async function confirmSignature() {
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
 
   document.getElementById("signatureModal").style.display = "none";
-  document.getElementById("finalSignatureImg").src = canvas.toDataURL("image/png");
-  document.getElementById("receiptSignature").style.display = "block";
+  
+  // 將顧客簽名填入隱藏版收據的下方
+  const sigImg = document.getElementById("rcptSignatureImg");
+  sigImg.src = canvas.toDataURL("image/png");
+  document.getElementById("rcptSignatureArea").style.display = "block";
 
-  const receiptArea = document.getElementById("receiptArea");
-  const finalCanvas = await html2canvas(receiptArea, { scale: 1.5, backgroundColor: "#F7F3EE" });
-  signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.7);
+  document.getElementById("btnGenerate").innerText = "最終排版產生中...";
+
+  // 針對含有簽名的完整隱藏版收據進行最後截圖
+  const receiptTemplate = document.getElementById("printReceiptTemplate");
+  const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
+  signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8);
 
   submitToGAS();
 }
 
 function submitToGAS() {
   document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候...";
-
-  const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
-  const timeString = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  const orderId = `POS-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => {
@@ -359,8 +383,8 @@ function submitToGAS() {
   });
 
   const payload = {
-    checkout_time: timeString,
-    order_id: orderId,
+    checkout_time: currentTimeString,
+    order_id: currentOrderId,
     member_name: document.getElementById("memberName").value,
     cashier: document.getElementById("cashier").value,
     payment_method: document.getElementById("paymentMethod").value,
@@ -380,7 +404,7 @@ function submitToGAS() {
   .then(response => response.json())
   .then(result => {
     if (result.status === "success") {
-      alert("結帳成功！單據已存入雲端。");
+      alert("結帳成功！清晰版收據已存入雲端。");
       location.reload(); 
     } else {
       alert("儲存失敗：" + result.message);
@@ -395,6 +419,5 @@ function submitToGAS() {
 
 function resetBtn() {
   document.getElementById("btnGenerate").disabled = false;
-  document.getElementById("btnGenerate").innerText = "重新上傳";
-  document.querySelectorAll(".btn-remove").forEach(el => el.style.display = "inline-block");
+  document.getElementById("btnGenerate").innerText = "產生確認單並簽名";
 }
