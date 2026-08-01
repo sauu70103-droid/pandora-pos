@@ -18,8 +18,8 @@
       --success-color: #88A985;
     }
 
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-dark); margin: 0; padding: 20px; }
-    .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-dark); margin: 0; padding: 20px; overflow-x: hidden; }
+    .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); position: relative; }
     h1, h2 { text-align: center; color: var(--text-dark); }
     
     .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; }
@@ -69,16 +69,25 @@
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
     /* ========================================= */
-    /* 專屬列印用收據版型 (隱藏在背景，僅供截圖使用) */
+    /* 專屬列印用收據版型 (徹底脫離網頁排版，極致穩定) */
     /* ========================================= */
+    #printReceiptWrapper {
+      position: fixed; 
+      top: 0; 
+      left: 200vw; /* 將元素移出真實螢幕範圍外，絕對不會撐破排版 */
+      pointer-events: none; 
+      z-index: -9999;
+    }
     #printReceiptTemplate {
-      position: absolute; left: 0; top: 0; z-index: -1000;
-      width: 480px; background: #ffffff; padding: 40px;
-      font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box;
+      width: 480px; 
+      background: #ffffff; 
+      padding: 40px;
+      font-family: 'Microsoft JhengHei', sans-serif; 
+      color: #111; 
+      box-sizing: border-box;
     }
     .rcpt-header { text-align: center; margin-bottom: 20px; }
     .rcpt-header h2 { margin: 0; font-size: 28px; font-weight: bold; color: #222; }
-    .rcpt-header p { margin: 10px 0 0 0; font-size: 14px; color: #555; letter-spacing: 2px; }
     .rcpt-divider { border-top: 2px dashed #333; margin: 20px 0; }
     .rcpt-info-row { display: flex; justify-content: space-between; margin: 12px 0; font-size: 15px; }
     .rcpt-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -87,7 +96,7 @@
     .rcpt-item-title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
     .rcpt-item-desc { font-size: 13px; color: #666; }
     .rcpt-total { text-align: right; font-size: 22px; font-weight: bold; margin: 20px 0; }
-    .rcpt-footer { text-align: center; font-size: 14px; color: #555; line-height: 1.8; margin-top: 30px; }
+    .rcpt-footer { text-align: center; font-size: 15px; color: #555; line-height: 1.8; margin-top: 30px; font-weight: bold; }
     #rcptSignatureArea { text-align: right; display: none; }
     #rcptSignatureArea img { max-width: 150px; border-bottom: 1px solid #000; }
   </style>
@@ -189,42 +198,47 @@
 </div>
 
 <!-- ========================================= -->
-<!-- 隱藏的收據排版範本 (專供 html2canvas 截圖用) -->
+<!-- 用 Fixed 包裝隱藏收據，徹底避免撐破畫面 -->
 <!-- ========================================= -->
-<div id="printReceiptTemplate">
-  <div class="rcpt-header">
-    <h2>潘朵拉美學院</h2>
-  </div>
-  <div class="rcpt-divider"></div>
-  <div class="rcpt-info-row"><span>交易單號：</span><span id="rcptOrderId"></span></div>
-  <div class="rcpt-info-row"><span>結帳時間：</span><span id="rcptTime"></span></div>
-  <div class="rcpt-info-row"><span>結帳方式 💰：</span><span id="rcptPayMethod"></span></div>
-  <div class="rcpt-info-row"><span>經手人員 👤：</span><span id="rcptCashier"></span></div>
-  <div class="rcpt-divider"></div>
-  <table class="rcpt-table">
-    <thead>
-      <tr>
-        <th style="width: 50%;">消費項目 / 會員</th>
-        <th style="text-align: center; width: 15%;">數量</th>
-        <th style="text-align: right; width: 35%;">金額 (師傅)</th>
-      </tr>
-    </thead>
-    <tbody id="rcptItemsBody">
-      <!-- 內容由 JS 動態填入 -->
-    </tbody>
-  </table>
-  <div class="rcpt-divider"></div>
-  <div class="rcpt-total">
-    總計金額： <span id="rcptTotalAmount"></span>
-  </div>
-  <div class="rcpt-divider"></div>
-  <div class="rcpt-footer">
-    💆‍♀️ 陪你一起美，陪你一起健康，<br>
-    ✨ 若有任何情況歡迎隨時官方賴詢問。<br><br>
-  </div>
-  <div id="rcptSignatureArea">
-    <p style="margin:0; font-size:14px; text-align:right;">顧客簽名：</p>
-    <img id="rcptSignatureImg" src="" alt="">
+<div id="printReceiptWrapper">
+  <div id="printReceiptTemplate">
+    <div class="rcpt-header">
+      <h2>潘朵拉美學院</h2>
+    </div>
+    <div class="rcpt-divider"></div>
+    <div class="rcpt-info-row"><span>交易單號：</span><span id="rcptOrderId"></span></div>
+    <div class="rcpt-info-row"><span>結帳時間：</span><span id="rcptTime"></span></div>
+    <div class="rcpt-info-row"><span>結帳方式 💰：</span><span id="rcptPayMethod"></span></div>
+    <div class="rcpt-info-row"><span>經手人員 👤：</span><span id="rcptCashier"></span></div>
+    <div class="rcpt-divider"></div>
+    <table class="rcpt-table">
+      <thead>
+        <tr>
+          <th style="width: 50%;">消費項目 / 會員</th>
+          <th style="text-align: center; width: 15%;">數量</th>
+          <th style="text-align: right; width: 35%;">金額 (師傅)</th>
+        </tr>
+      </thead>
+      <tbody id="rcptItemsBody">
+        <!-- 內容由 JS 動態填入 -->
+      </tbody>
+    </table>
+    <div class="rcpt-divider"></div>
+    <div class="rcpt-total">
+      總計金額： <span id="rcptTotalAmount"></span>
+    </div>
+    <div class="rcpt-divider"></div>
+    
+    <!-- 更新後的專屬結語 -->
+    <div class="rcpt-footer">
+      💆‍♀️ 陪你一起美，陪你一起健康，<br>
+      ✨ 若有任何情況歡迎隨時官方賴詢問。
+    </div>
+    
+    <div id="rcptSignatureArea">
+      <p style="margin:0; font-size:14px; text-align:right;">顧客簽名：</p>
+      <img id="rcptSignatureImg" src="" alt="">
+    </div>
   </div>
 </div>
 
