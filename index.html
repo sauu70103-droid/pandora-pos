@@ -120,7 +120,6 @@
       <div class="form-group">
         <div><label>結帳時間 (可修改補登)</label><input type="datetime-local" id="checkoutDateTime" required></div>
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
-        <!-- 💡 新增：手機號碼欄位 -->
         <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
         <div>
@@ -155,7 +154,8 @@
         <thead>
           <tr>
             <th>服務細項</th>
-            <th>調理人員</th>
+            <!-- 💡 這裡已經幫你把「調理人員」改成「操作老師」了 -->
+            <th>操作老師</th>
             <th>單價 (NT$)</th>
             <th style="width: 80px;">數量</th> 
             <th>操作</th>
@@ -184,7 +184,6 @@
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
-    <!-- 💡 新增：自訂日期查詢選擇器 -->
     <div class="report-controls">
       <button id="filter-today" class="active" onclick="loadReport('today')">今日業績</button>
       <button id="filter-week" onclick="loadReport('week')">本週業績</button>
