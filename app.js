@@ -76,7 +76,7 @@ function renderSubItems(category) {
   }
 }
 
-// 🛒 將項目加入購物車 (💡 這裡加入了開單人員與操作人員的聯動邏輯)
+// 🛒 將項目加入購物車 
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -84,11 +84,8 @@ function addToCart(itemName, itemPrice) {
   // 1. 取得目前「開單櫃台」選中的人員
   const currentCashier = document.getElementById("cashier").value;
 
-  // 2. 製作操作人員選項，若與開單人員相符則自動加上 selected 預設選取
-  const techOptions = technicians.map(t => {
-    const isSelected = (t === currentCashier) ? "selected" : "";
-    return `<option value="${t}" ${isSelected}>${t}</option>`;
-  }).join('');
+  // 2. 單純產生下拉選單選項，移除在這邊寫 selected (避免瀏覽器吃掉設定)
+  const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
 
   const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   const qtyHTML = `<input type="number" class="item-qty" value="1" min="1" oninput="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">`;
@@ -98,7 +95,14 @@ function addToCart(itemName, itemPrice) {
                   <td>${inputHTML}</td>
                   <td>${qtyHTML}</td>
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
-  tbody.appendChild(tr); calculateTotal();
+                  
+  // 3. 將整列加入到表格中                
+  tbody.appendChild(tr); 
+  
+  // 💡 4. 【強制寫入連動】透過 JavaScript DOM 直接鎖定剛剛加入的選單，並強制指定它的值！
+  tr.querySelector(".item-tech").value = currentCashier;
+
+  calculateTotal();
 }
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
@@ -397,7 +401,7 @@ async function startCheckout() {
   if (!phone) return alert("請輸入手機號碼！");
 
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
-  let priceMissing = false; document.querySelectorAll(".item-price").value; // syntax check safeguard
+  let priceMissing = false; 
   document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
   
