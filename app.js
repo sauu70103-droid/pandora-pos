@@ -19,7 +19,7 @@ const menuData = {
   "🧴 手足保養": { "淨化保養-手部淨化指甲保養續作": 300, "淨化保養-足部指甲": 500, "淨化保養-手部純保養": 400, "淨化保養-手工拋光": 100, "深層保養-短膜手足膜": 299, "深層保養-長膜手足膜": 399, "深層保養-手部深層保養": 1200, "深層保養-足部深層保養": 1800, "深層保養-足繭護理(嚴重)": 1000, "深層保養-足繭護理(一般)": 800, "深層保養-拋棄式足搓": 99 },
   "💧 卸甲": { "卸甲(他店續做)": 300, "卸甲(本店不續做)": 300, "卸甲(他店不續做)": 500, "卸甲(本店續做)": 200 },
   "🛍️ 產品": { "特殊甲產品-修甲套組": 1500, "特殊甲產品-防潮平衡液": 280, "特殊甲產品-BAOGAAO": 350, "特殊甲產品-灰指甲修護液": 980, "特殊甲產品-淨銀乳": 680, "特殊甲產品-磨板類": 40, "特殊甲產品-煥采抗菌噴霧": 480, "指緣修護油": 280, "指緣軟化液": 350, "鈣元素硬甲油": 375, "手足滋潤修護霜": 280 },
-  "🪒 除毛": { "腋下": 400, "腳趾/手指": 250, "全背": 800, "小花": 300, "小腿": 800, "大腿": 800, "上手臂/小手臂": 700, "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299 },
+  "🪒 除毛": { "腋下": 400, "腳趾/手指": 250, "全全背": 800, "小花": 300, "小腿": 800, "大腿": 800, "上手臂/小手臂": 700, "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299 },
   "💰 定金及加費": { "定金": 500, "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
 };
 
@@ -31,7 +31,6 @@ window.onload = () => {
 
 function initCheckoutTime() {
   const now = new Date();
-  // 調整時差以適應 input[type="datetime-local"] 格式
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
 }
@@ -71,21 +70,36 @@ function renderSubItems(category) {
     grid.appendChild(btn);
   }
 }
+
+// 🛒 將項目加入購物車 (加上「數量」輸入框)
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
   const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
   const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
-  tr.innerHTML = `<td style="text-align:left; font-weight:bold;"><input type="hidden" class="item-name" value="${itemName}">${itemName}</td><td><select class="item-tech">${techOptions}</select></td><td>${inputHTML}</td><td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
+  
+  // 新增數量輸入框 (預設為 1，並監聽 oninput 重新計算總和)
+  const qtyHTML = `<input type="number" class="item-qty" value="1" min="1" oninput="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">`;
+  
+  tr.innerHTML = `<td style="text-align:left; font-weight:bold;"><input type="hidden" class="item-name" value="${itemName}">${itemName}</td>
+                  <td><select class="item-tech">${techOptions}</select></td>
+                  <td>${inputHTML}</td>
+                  <td>${qtyHTML}</td>
+                  <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); calculateTotal();
 }
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
+
+// 💰 計算總計金額 (升級為 單價 × 數量)
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
     const sName = row.querySelector(".item-name").value;
     let price = parseInt(row.querySelector(".item-price").value) || 0;
-    if (sName.includes("抵扣")) { total -= Math.abs(price); } else { total += price; }
+    let qty = parseInt(row.querySelector(".item-qty").value) || 1; // 取得數量
+    let subtotal = price * qty;
+    
+    if (sName.includes("抵扣")) { total -= Math.abs(subtotal); } else { total += subtotal; }
   });
   document.getElementById("totalAmount").innerText = total; return total;
 }
@@ -95,20 +109,20 @@ function calculateTotal() {
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
-let currentTechFilter = null; // 用來記錄目前是否點選了某位老師篩選
+let currentTechFilter = null; 
 
 function toggleTechFilter(techName) {
   if (currentTechFilter === techName) {
-    currentTechFilter = null; // 再次點擊取消篩選
+    currentTechFilter = null; 
   } else {
-    currentTechFilter = techName; // 點擊篩選該老師
+    currentTechFilter = techName; 
   }
   processReportData(currentFilter);
 }
 
 function loadReport(filterType) {
   currentFilter = filterType;
-  currentTechFilter = null; // 切換日期時重置老師篩選
+  currentTechFilter = null; 
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   document.getElementById('filter-' + filterType).classList.add('active');
   const summaryDiv = document.getElementById("reportSummary");
@@ -159,28 +173,31 @@ function processReportData(filterType) {
       let items = [];
       try { items = JSON.parse(row["購買明細(JSON)"]); } catch(e) {}
       
-      // 不管是否過濾，都先結算所有老師的業績總和，讓卡片可以顯示全店數字
+      // 計算老師業績時，乘上數量 qty (加入 || 1 防呆，相容沒有數量欄位的舊單據)
       items.forEach(item => {
         if(!isVoid && techRevenue[item.technician] !== undefined) { 
-          techRevenue[item.technician] += parseInt(item.price) || 0; 
+          let qty = parseInt(item.qty) || 1;
+          techRevenue[item.technician] += (parseInt(item.price) || 0) * qty; 
         }
       });
 
-      // === 處理下方詳細明細的顯示與過濾邏輯 ===
       let displayItems = items;
       let rowTotalAmount = parseInt(row["總金額"]) || 0;
 
-      // 如果有選擇過濾特定老師，就只把跟這個老師有關的項目拿出來
       if (currentTechFilter) {
         displayItems = items.filter(i => i.technician === currentTechFilter);
-        if (displayItems.length === 0) return; // 如果這張單沒有這位老師，整列跳過不顯示
-        
-        // 重新計算這張單中，該老師負責項目的加總
-        rowTotalAmount = displayItems.reduce((sum, item) => sum + (parseInt(item.price) || 0), 0);
+        if (displayItems.length === 0) return; 
+        // 重新計算這張單中，該老師負責項目的加總 (單價 × 數量)
+        rowTotalAmount = displayItems.reduce((sum, item) => sum + ((parseInt(item.price) || 0) * (parseInt(item.qty) || 1)), 0);
       }
 
-      const itemsStr = displayItems.map(i => `${i.item_name}(${i.technician})`).join('<br>');
-      // 展開為詳細時間格式
+      // 明細中如果數量大於 1，顯示「x2」方便對帳
+      const itemsStr = displayItems.map(i => {
+        let qty = parseInt(i.qty) || 1;
+        let qtyDisplay = qty > 1 ? ` <span style="color:#d9534f;font-weight:bold;">x${qty}</span>` : "";
+        return `${i.item_name}${qtyDisplay} (${i.technician})`;
+      }).join('<br>');
+
       const timeStr = `${rowDate.getFullYear()}-${String(rowDate.getMonth()+1).padStart(2,'0')}-${String(rowDate.getDate()).padStart(2,'0')} <br> ${String(rowDate.getHours()).padStart(2,'0')}:${String(rowDate.getMinutes()).padStart(2,'0')}`;
       
       const displayAmount = isVoid 
@@ -205,16 +222,14 @@ function processReportData(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
 
-  // 渲染老師卡片並加入點擊篩選機制
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   technicians.forEach(t => {
     if(techRevenue[t] !== 0 || t !== "無指定") {
       hasData = true;
       const card = document.createElement("div"); 
-      // 若目前篩選的是這位老師，加入 active-tech 樣式變色
       card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
-      card.onclick = () => toggleTechFilter(t); // 點擊過濾
+      card.onclick = () => toggleTechFilter(t); 
       card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
       summaryDiv.appendChild(card);
     }
@@ -295,7 +310,7 @@ function executeVoid(orderId, checkoutTime) {
 }
 
 // ==========================================
-// 簽名板與收據截圖儲存 (正常結帳邏輯維持不變)
+// 簽名板與收據截圖儲存 
 // ==========================================
 const canvas = document.getElementById("sigCanvas");
 const ctx = canvas.getContext("2d");
@@ -317,13 +332,11 @@ function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 function preparePrintReceipt() {
   const pad = num => String(num).padStart(2, '0');
   
-  // 改為讀取表單上自訂的時間
   const selectedTime = document.getElementById("checkoutDateTime").value;
   const d = new Date(selectedTime);
   currentTimeString = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   
   if (!currentOrderId) { 
-    // 交易單號依舊採用當下實際戳記，確保單號不重複
     currentOrderId = `F${Date.now()}`; 
   }
 
@@ -335,10 +348,17 @@ function preparePrintReceipt() {
 
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
   document.querySelectorAll("#cartBody tr").forEach(row => {
-    const sName = row.querySelector(".item-name").value; const sTech = row.querySelector(".item-tech").value;
+    const sName = row.querySelector(".item-name").value; 
+    const sTech = row.querySelector(".item-tech").value;
     const sPrice = parseInt(row.querySelector(".item-price").value) || 0;
-    let displayPrice = "$" + sPrice; if (sName.includes("抵扣")) displayPrice = "-$" + Math.abs(sPrice);
-    itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">1</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
+    const sQty = parseInt(row.querySelector(".item-qty").value) || 1; // 收據排版抓取數量
+    
+    const subtotal = Math.abs(sPrice) * sQty; // 算該項小計
+    let displayPrice = "$" + subtotal; 
+    if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
+    
+    // 輸出時，將 sQty 填入數量的欄位中
+    itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
   });
   document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
 }
@@ -376,13 +396,19 @@ async function confirmSignature() {
   submitToGAS();
 }
 
+// 📤 上傳雲端 (加上數量封裝)
 function submitToGAS() {
   document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候...";
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => {
-    const sName = row.querySelector(".item-name").value; let sPrice = parseInt(row.querySelector(".item-price").value) || 0;
+    const sName = row.querySelector(".item-name").value; 
+    let sPrice = parseInt(row.querySelector(".item-price").value) || 0;
+    let sQty = parseInt(row.querySelector(".item-qty").value) || 1; // 抓數量
+    
     if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice);
-    cartItems.push({ item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice });
+    
+    // 記錄時把 qty 加入，單價維持原本定價，利於後續分析
+    cartItems.push({ item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty });
   });
 
   const payload = {
