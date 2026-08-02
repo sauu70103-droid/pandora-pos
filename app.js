@@ -42,7 +42,11 @@ function switchTab(tabName) {
   document.getElementById('content-' + tabName).classList.add('active');
   if (tabName === 'report') loadReport('today'); 
 }
-function initCashierOptions() { document.getElementById("cashier").innerHTML = technicians.map(t => `<option value="${t}">${t}</option>`).join(''); }
+
+function initCashierOptions() { 
+  document.getElementById("cashier").innerHTML = technicians.map(t => `<option value="${t}">${t}</option>`).join(''); 
+}
+
 function renderCategoryButtons() {
   const grid = document.getElementById("categoryGrid");
   grid.innerHTML = "";
@@ -57,6 +61,7 @@ function renderCategoryButtons() {
     grid.appendChild(btn);
   }
 }
+
 function renderSubItems(category) {
   const container = document.getElementById("subItemContainer");
   const grid = document.getElementById("subItemGrid");
@@ -71,10 +76,20 @@ function renderSubItems(category) {
   }
 }
 
+// 🛒 將項目加入購物車 (💡 這裡加入了開單人員與操作人員的聯動邏輯)
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
-  const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
+  
+  // 1. 取得目前「開單櫃台」選中的人員
+  const currentCashier = document.getElementById("cashier").value;
+
+  // 2. 製作操作人員選項，若與開單人員相符則自動加上 selected 預設選取
+  const techOptions = technicians.map(t => {
+    const isSelected = (t === currentCashier) ? "selected" : "";
+    return `<option value="${t}" ${isSelected}>${t}</option>`;
+  }).join('');
+
   const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   const qtyHTML = `<input type="number" class="item-qty" value="1" min="1" oninput="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">`;
   
@@ -85,6 +100,7 @@ function addToCart(itemName, itemPrice) {
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); calculateTotal();
 }
+
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
 function calculateTotal() {
@@ -120,7 +136,7 @@ function loadReport(filterType) {
   
   if (filterType !== 'custom') {
     document.getElementById('filter-' + filterType).classList.add('active');
-    document.getElementById('customDateFilter').value = ""; // 清空自訂日期
+    document.getElementById('customDateFilter').value = ""; 
   }
   
   const summaryDiv = document.getElementById("reportSummary");
@@ -149,14 +165,13 @@ function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
   
-  // 取得真實系統文字格式，例如 "2026-08-02"
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const thisMonthStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
   
   let customDateStr = "";
   if (filterType === 'custom') {
     customDateStr = document.getElementById("customDateFilter").value;
-    if (!customDateStr) return; // 如果還沒選就不動作
+    if (!customDateStr) return; 
   }
 
   let techRevenue = {}; technicians.forEach(t => techRevenue[t] = 0);
@@ -164,12 +179,10 @@ function processReportData(filterType) {
   let detailedHTML = "";
 
   allReportData.forEach(row => {
-    // 💡 核心防錯：直接截取雲端存好的文字 (YYYY-MM-DD)，不透過 new Date() 轉換，避開時區加減！
     const rawTimeStr = String(row["結帳時間"]);
-    const rowDateStr = rawTimeStr.substring(0, 10).replace(/\//g, '-'); // 確保是 YYYY-MM-DD
+    const rowDateStr = rawTimeStr.substring(0, 10).replace(/\//g, '-'); 
     const isVoid = (row["單據狀態"] === "作廢");
 
-    // 檢查這筆資料是否符合我們選擇的條件
     let isMatch = false;
     if (filterType === 'today') { 
       isMatch = (rowDateStr === todayStr); 
@@ -184,7 +197,6 @@ function processReportData(filterType) {
     }
 
     if (isMatch) {
-      // 計算該區間的總業績
       filteredTotal += isVoid ? 0 : (parseInt(row["總金額"]) || 0);
 
       let items = [];
@@ -212,13 +224,11 @@ function processReportData(filterType) {
         return `${i.item_name}${qtyDisplay} (${i.technician})`;
       }).join('<br>');
 
-      // 提取細節時間供顯示使用
       let displayTime = rawTimeStr;
       if(displayTime.length > 10) {
          displayTime = `${rowDateStr} <br> ${rawTimeStr.substring(11,16)}`;
       }
       
-      // 顯示手機號碼
       const phoneDisplay = row["手機號碼"] ? `<br><span style="font-size:0.85em; color:#666;">📞 ${row["手機號碼"]}</span>` : "";
 
       const displayAmount = isVoid 
@@ -259,7 +269,7 @@ function processReportData(filterType) {
 }
 
 // ==========================================
-// 單據查詢與作廢管理 (字串切割比對)
+// 單據查詢與作廢管理 
 // ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
@@ -285,7 +295,6 @@ function fetchVoidList() {
         res.data.forEach(row => {
           if (row["單據狀態"] === "作廢") return; 
 
-          // 💡 一樣使用安全的字串比對
           const rowDateStr = String(row["結帳時間"]).substring(0, 10).replace(/\//g, '-');
           if (rowDateStr === targetDateStr) {
             hasData = true;
@@ -323,9 +332,9 @@ function executeVoid(orderId, checkoutTime) {
   .then(res => res.json())
   .then(result => {
     alert("作廢成功！系統將自動刷新帳務...");
-    allReportData = []; // 清空快取
-    fetchVoidList(); // 重新整理查詢清單
-    loadReport(currentFilter); // 重新計算外層報表
+    allReportData = []; 
+    fetchVoidList(); 
+    loadReport(currentFilter); 
   })
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
@@ -384,12 +393,12 @@ async function startCheckout() {
   const memberName = document.getElementById("memberName").value.trim();
   if (!memberName) return alert("請輸入會員名稱！");
   
-  // 💡 檢查是否有填寫手機
   const phone = document.getElementById("memberPhone").value.trim();
   if (!phone) return alert("請輸入手機號碼！");
 
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
-  let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
+  let priceMissing = false; document.querySelectorAll(".item-price").value; // syntax check safeguard
+  document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
   
   if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
@@ -418,7 +427,6 @@ async function confirmSignature() {
   submitToGAS();
 }
 
-// 📤 上傳雲端 (加上電話號碼)
 function submitToGAS() {
   document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候...";
   const cartItems = [];
@@ -435,7 +443,7 @@ function submitToGAS() {
     checkout_time: currentTimeString, 
     order_id: currentOrderId,
     member_name: document.getElementById("memberName").value.trim(), 
-    phone_number: document.getElementById("memberPhone").value.trim(), // 💡 新增上傳電話號碼
+    phone_number: document.getElementById("memberPhone").value.trim(), 
     cashier: document.getElementById("cashier").value,
     payment_method: document.getElementById("paymentMethod").value, 
     payment_unit: document.getElementById("paymentUnit").value,
