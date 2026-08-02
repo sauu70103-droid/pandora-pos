@@ -23,7 +23,19 @@ const menuData = {
   "💰 定金及加費": { "定金": 500, "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
 };
 
-window.onload = () => { initCashierOptions(); renderCategoryButtons(); };
+window.onload = () => { 
+  initCheckoutTime();
+  initCashierOptions(); 
+  renderCategoryButtons(); 
+};
+
+function initCheckoutTime() {
+  const now = new Date();
+  // 調整時差以適應 input[type="datetime-local"] 格式
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
+}
+
 function switchTab(tabName) {
   document.querySelectorAll('.nav-tabs button').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -79,13 +91,24 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (詳細對帳與作廢金額歸零)
+// 店務報表 (詳細對帳與作廢金額歸零 + 老師過濾)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
+let currentTechFilter = null; // 用來記錄目前是否點選了某位老師篩選
+
+function toggleTechFilter(techName) {
+  if (currentTechFilter === techName) {
+    currentTechFilter = null; // 再次點擊取消篩選
+  } else {
+    currentTechFilter = techName; // 點擊篩選該老師
+  }
+  processReportData(currentFilter);
+}
 
 function loadReport(filterType) {
   currentFilter = filterType;
+  currentTechFilter = null; // 切換日期時重置老師篩選
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   document.getElementById('filter-' + filterType).classList.add('active');
   const summaryDiv = document.getElementById("reportSummary");
@@ -118,9 +141,7 @@ function processReportData(filterType) {
 
   allReportData.forEach(row => {
     const rowDate = new Date(row["結帳時間"]);
-    // 【防呆辨識】看到作廢字樣，金額直接視為 0
     const isVoid = (row["單據狀態"] === "作廢");
-    const actualAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
 
     let isMatch = false;
     if (filterType === 'today') { isMatch = (rowDate.toDateString() === now.toDateString()); } 
@@ -130,35 +151,46 @@ function processReportData(filterType) {
       isMatch = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7);
     }
 
-    // 計算今日總額 
     if (rowDate.toDateString() === now.toDateString()) {
-      todayTotal += actualAmount;
+      todayTotal += isVoid ? 0 : (parseInt(row["總金額"]) || 0);
     }
 
     if (isMatch) {
-      let itemsStr = "";
-      try {
-        const items = JSON.parse(row["購買明細(JSON)"]);
-        items.forEach(item => {
-          // 若沒被作廢，才將金額加給操作老師
-          if(!isVoid && techRevenue[item.technician] !== undefined) { 
-            techRevenue[item.technician] += parseInt(item.price) || 0; 
-          }
-        });
-        itemsStr = items.map(i => `${i.item_name}(${i.technician})`).join('<br>');
-      } catch(e) { itemsStr = "資料讀取錯誤"; }
-
-      const timeStr = `${String(rowDate.getHours()).padStart(2,'0')}:${String(rowDate.getMinutes()).padStart(2,'0')}`;
+      let items = [];
+      try { items = JSON.parse(row["購買明細(JSON)"]); } catch(e) {}
       
-      // 若是作廢單據，加上刪除線與紅色註記
+      // 不管是否過濾，都先結算所有老師的業績總和，讓卡片可以顯示全店數字
+      items.forEach(item => {
+        if(!isVoid && techRevenue[item.technician] !== undefined) { 
+          techRevenue[item.technician] += parseInt(item.price) || 0; 
+        }
+      });
+
+      // === 處理下方詳細明細的顯示與過濾邏輯 ===
+      let displayItems = items;
+      let rowTotalAmount = parseInt(row["總金額"]) || 0;
+
+      // 如果有選擇過濾特定老師，就只把跟這個老師有關的項目拿出來
+      if (currentTechFilter) {
+        displayItems = items.filter(i => i.technician === currentTechFilter);
+        if (displayItems.length === 0) return; // 如果這張單沒有這位老師，整列跳過不顯示
+        
+        // 重新計算這張單中，該老師負責項目的加總
+        rowTotalAmount = displayItems.reduce((sum, item) => sum + (parseInt(item.price) || 0), 0);
+      }
+
+      const itemsStr = displayItems.map(i => `${i.item_name}(${i.technician})`).join('<br>');
+      // 展開為詳細時間格式
+      const timeStr = `${rowDate.getFullYear()}-${String(rowDate.getMonth()+1).padStart(2,'0')}-${String(rowDate.getDate()).padStart(2,'0')} <br> ${String(rowDate.getHours()).padStart(2,'0')}:${String(rowDate.getMinutes()).padStart(2,'0')}`;
+      
       const displayAmount = isVoid 
-        ? `<span style="text-decoration:line-through; color:#aaa; font-size:0.9em;">$${row["總金額"]}</span><br><strong style="color:#d9534f;">$0 [已作廢]</strong>`
-        : `<strong>$${row["總金額"]}</strong>`;
+        ? `<span style="text-decoration:line-through; color:#aaa; font-size:0.9em;">$${rowTotalAmount}</span><br><strong style="color:#d9534f;">$0 [已作廢]</strong>`
+        : `<strong>$${rowTotalAmount}</strong>`;
       const rowStyle = isVoid ? `background-color: #fdf5f5; color: #a0a0a0;` : ``;
 
       detailedHTML += `
         <tr style="${rowStyle}">
-          <td>${timeStr}</td>
+          <td style="font-size:0.85em;">${timeStr}</td>
           <td>${row["會員名稱"]}</td>
           <td style="font-size:0.9em; line-height:1.4; text-align:left;">${itemsStr}</td>
           <td style="color:var(--text-dark); font-size:1.1em;">${displayAmount}</td>
@@ -168,15 +200,21 @@ function processReportData(filterType) {
   });
 
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${todayTotal.toLocaleString()}`;
-  const detailedBody = document.getElementById("detailedReportBody");
-  detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間尚無結帳明細</td></tr>`;
+  document.getElementById("dashboardTotalTitle").innerText = currentTechFilter ? `本日結帳總額 (目前篩選: ${currentTechFilter})` : `本日結帳總額 (已扣除作廢)`;
 
+  const detailedBody = document.getElementById("detailedReportBody");
+  detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
+
+  // 渲染老師卡片並加入點擊篩選機制
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   technicians.forEach(t => {
     if(techRevenue[t] !== 0 || t !== "無指定") {
       hasData = true;
-      const card = document.createElement("div"); card.className = "report-card";
+      const card = document.createElement("div"); 
+      // 若目前篩選的是這位老師，加入 active-tech 樣式變色
+      card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
+      card.onclick = () => toggleTechFilter(t); // 點擊過濾
       card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
       summaryDiv.appendChild(card);
     }
@@ -210,7 +248,6 @@ function fetchVoidList() {
         container.innerHTML = "";
         let hasData = false;
         res.data.forEach(row => {
-          // 【絕對隱藏】只要狀態為作廢，直接從「待作廢查詢清單」中消失，不能被二次查詢
           if (row["單據狀態"] === "作廢") return; 
 
           const rowDate = new Date(row["結帳時間"]);
@@ -278,8 +315,18 @@ canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.ad
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
 function preparePrintReceipt() {
-  const now = new Date(); const pad = num => String(num).padStart(2, '0');
-  if (!currentOrderId) { currentTimeString = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`; currentOrderId = `F${now.getTime()}`; }
+  const pad = num => String(num).padStart(2, '0');
+  
+  // 改為讀取表單上自訂的時間
+  const selectedTime = document.getElementById("checkoutDateTime").value;
+  const d = new Date(selectedTime);
+  currentTimeString = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  
+  if (!currentOrderId) { 
+    // 交易單號依舊採用當下實際戳記，確保單號不重複
+    currentOrderId = `F${Date.now()}`; 
+  }
+
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
   document.getElementById("rcptTime").innerText = currentTimeString;
@@ -302,6 +349,8 @@ async function startCheckout() {
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
   let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
+  
+  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
 
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
   try {
