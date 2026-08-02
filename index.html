@@ -60,9 +60,11 @@
     .btn-clear { background: #E2D6C8; color: var(--text-dark); }
     .btn-confirm { background: var(--success-color); color: white; }
 
-    .report-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
-    .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+    .report-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; align-items: center; flex-wrap: wrap;}
+    .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s;}
     .report-controls button.active { background: var(--primary-color); color: white; }
+    .report-controls input[type="date"] { width: auto; padding: 7px 15px; border: 2px solid var(--border-color); border-radius: 20px; background: white; font-weight: bold; cursor: pointer;}
+    .report-controls input[type="date"]:focus { border-color: var(--primary-color); }
     
     .report-summary { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; cursor: pointer; transition: 0.2s; }
@@ -81,7 +83,6 @@
 
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
-    /* 詳細報表表格樣式 */
     .detailed-table { width: 100%; font-size: 0.95em; border-collapse: collapse; }
     .detailed-table th { background-color: #E2D6C8; padding: 10px; border: 1px solid var(--border-color); }
     .detailed-table td { background-color: #FFFFFF; padding: 10px; border: 1px solid var(--border-color); text-align: center; }
@@ -119,6 +120,8 @@
       <div class="form-group">
         <div><label>結帳時間 (可修改補登)</label><input type="datetime-local" id="checkoutDateTime" required></div>
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
+        <!-- 💡 新增：手機號碼欄位 -->
+        <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
         <div>
           <label>收款方式</label>
@@ -154,7 +157,7 @@
             <th>服務細項</th>
             <th>調理人員</th>
             <th>單價 (NT$)</th>
-            <th style="width: 80px;">數量</th> <!-- 新增數量欄位 -->
+            <th style="width: 80px;">數量</th> 
             <th>操作</th>
           </tr>
         </thead>
@@ -177,22 +180,24 @@
   <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
-      <h3 id="dashboardTotalTitle">本日結帳總額 (已扣除作廢)</h3>
+      <h3 id="dashboardTotalTitle">該區間結帳總額 (已扣除作廢)</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
+    <!-- 💡 新增：自訂日期查詢選擇器 -->
     <div class="report-controls">
       <button id="filter-today" class="active" onclick="loadReport('today')">今日業績</button>
       <button id="filter-week" onclick="loadReport('week')">本週業績</button>
       <button id="filter-month" onclick="loadReport('month')">本月業績</button>
+      <span style="font-weight:bold; color:var(--text-dark); margin-left:10px;">特定日期：</span>
+      <input type="date" id="customDateFilter" onchange="loadReport('custom')">
     </div>
+    
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
     
-    <!-- 老師業績統計 -->
     <h4 style="color:#888; text-align:center; margin-bottom:5px;">💡 點擊老師卡片即可篩選該老師專屬明細</h4>
     <div class="report-summary" id="reportSummary"></div>
 
-    <!-- 詳細明細對帳區塊 -->
     <div id="detailedReportContainer" style="margin-bottom: 30px;">
       <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">📋 詳細對帳明細</h3>
       <div style="overflow-x: auto;">
@@ -200,7 +205,7 @@
           <thead>
             <tr>
               <th style="width:25%">時間</th>
-              <th style="width:15%">顧客</th>
+              <th style="width:15%">顧客資訊</th>
               <th style="width:40%">消費項目 (老師)</th>
               <th style="width:20%">金額</th>
             </tr>
@@ -212,7 +217,6 @@
       </div>
     </div>
 
-    <!-- 防錯與作廢管理區 -->
     <div class="admin-tools">
       <h3>⚠️ 單據作廢與調整</h3>
       <p style="font-size:0.9em; color:#888; margin-top:0;">(已作廢的單據金額將歸零，並在報表中標示紅色註記)</p>
@@ -224,7 +228,7 @@
 
 </div>
 
-<!-- 簽名板彈出視窗 -->
+<!-- 簽名與作廢隱藏區塊維持不變 -->
 <div id="signatureModal" class="modal">
   <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
@@ -235,8 +239,6 @@
     </div>
   </div>
 </div>
-
-<!-- 作廢清單彈出視窗 -->
 <div id="voidModal" class="modal">
   <div class="modal-content">
     <h2 style="color: var(--text-dark); margin-top:0; text-align: center;">單據查詢與作廢</h2>
@@ -253,8 +255,6 @@
     </div>
   </div>
 </div>
-
-<!-- 隱藏的收據排版 -->
 <div id="printReceiptWrapper">
   <div id="printReceiptTemplate">
     <div class="rcpt-header">
@@ -290,7 +290,6 @@
     </div>
   </div>
 </div>
-
 <script src="app.js"></script>
 </body>
 </html>
