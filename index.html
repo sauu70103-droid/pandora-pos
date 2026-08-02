@@ -117,7 +117,6 @@
     <div>
       <h1>數位 POS 結帳單</h1>
       <div class="form-group">
-        <!-- 結帳時間欄位：加入日期與時間選擇，預設自動帶入當下 -->
         <div><label>結帳時間 (可修改補登)</label><input type="datetime-local" id="checkoutDateTime" required></div>
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
@@ -155,6 +154,7 @@
             <th>服務細項</th>
             <th>調理人員</th>
             <th>單價 (NT$)</th>
+            <th style="width: 80px;">數量</th> <!-- 新增數量欄位 -->
             <th>操作</th>
           </tr>
         </thead>
