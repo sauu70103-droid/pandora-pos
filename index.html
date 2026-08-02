@@ -80,10 +80,9 @@
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
     /* 詳細報表表格樣式 */
-    .detailed-table { width: 100%; font-size: 0.95em; }
-    .detailed-table th { background-color: #E2D6C8; }
-    .detailed-table td { background-color: #FFFFFF; padding: 10px; }
-    .detailed-table tr:nth-child(even) td { background-color: #FDFBF8; }
+    .detailed-table { width: 100%; font-size: 0.95em; border-collapse: collapse; }
+    .detailed-table th { background-color: #E2D6C8; padding: 10px; border: 1px solid var(--border-color); }
+    .detailed-table td { background-color: #FFFFFF; padding: 10px; border: 1px solid var(--border-color); text-align: center; }
 
     #printReceiptWrapper { position: fixed; top: 0; left: 200vw; pointer-events: none; z-index: -9999; }
     #printReceiptTemplate { width: 480px; background: #ffffff; padding: 40px; font-family: 'Microsoft JhengHei', sans-serif; color: #111; box-sizing: border-box; }
@@ -174,7 +173,7 @@
   <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
-      <h3>本日結帳總額</h3>
+      <h3>本日結帳總額 (已扣除作廢)</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
@@ -211,8 +210,8 @@
     <!-- 防錯與作廢管理區 -->
     <div class="admin-tools">
       <h3>⚠️ 單據作廢與調整</h3>
-      <p style="font-size:0.9em; color:#888; margin-top:0;">(已作廢的單據會徹底從系統紀錄中隱藏，不列入任何計算)</p>
-      <div class="admin-btns">
+      <p style="font-size:0.9em; color:#888; margin-top:0;">(已作廢的單據金額將歸零，並在報表中標示紅色註記)</p>
+      <div class="admin-btns" style="justify-content: center; display: flex;">
         <button onclick="openVoidModal()">📅 開啟單據查詢與作廢面板</button>
       </div>
     </div>
