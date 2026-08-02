@@ -76,13 +76,11 @@ function renderSubItems(category) {
   }
 }
 
-// 🛒 雙重強制連動開單人員與操作老師
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
   const currentCashier = document.getElementById("cashier").value;
   
-  // 第一重防護：直接在 HTML 字串中寫入 selected
   const techOptions = technicians.map(t => {
     const isSelected = (t === currentCashier) ? "selected" : "";
     return `<option value="${t}" ${isSelected}>${t}</option>`;
@@ -98,7 +96,6 @@ function addToCart(itemName, itemPrice) {
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); 
   
-  // 第二重防護：使用 DOM 強制指定值
   tr.querySelector(".item-tech").value = currentCashier;
   calculateTotal();
 }
@@ -145,14 +142,13 @@ function loadReport(filterType) {
   } else {
     const customDate = document.getElementById("customDateFilter").value;
     if (!customDate) return; 
-    reqMonth = customDate.split('-')[1]; // 從自訂日期抓月份
+    reqMonth = customDate.split('-')[1]; 
   }
   
   const summaryDiv = document.getElementById("reportSummary");
   const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
 
-  // 💡 安全機制：若陣列為空，或是選到「別的月份」的自訂日期，強制重新去雲端撈資料！
   if (allReportData.length === 0 || loadedMonth !== reqMonth) {
     summaryDiv.innerHTML = ""; detailedBody.innerHTML = "";
     loadingDiv.style.display = "block";
@@ -189,13 +185,14 @@ function processReportData(filterType) {
   let detailedHTML = "";
 
   allReportData.forEach(row => {
-    // 💡 超級防呆時間解析器：把各種奇怪的斜線換算成標準 JS Date
     const rawTimeStr = String(row["結帳時間"]);
     let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
-    if (isNaN(rowDateObj.getTime())) return; // 避開完全無效的空行
+    if (isNaN(rowDateObj.getTime())) return; 
 
     const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
-    const isVoid = (row["單據狀態"] === "作廢");
+    
+    // 💡 同步讀取新的狀態欄位名稱
+    const isVoid = (row["收據明細狀態"] === "作廢");
 
     let isMatch = false;
     if (filterType === 'today') { 
@@ -370,7 +367,8 @@ function fetchVoidList() {
         container.innerHTML = "";
         let hasData = false;
         res.data.forEach(row => {
-          if (row["單據狀態"] === "作廢") return; 
+          // 💡 同步讀取新的狀態欄位名稱
+          if (row["收據明細狀態"] === "作廢") return; 
 
           const rawTimeStr = String(row["結帳時間"]);
           let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
