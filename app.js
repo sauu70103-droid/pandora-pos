@@ -79,7 +79,7 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (詳細明細與防呆過濾)
+// 店務報表 (詳細對帳與作廢金額歸零)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
@@ -92,7 +92,6 @@ function loadReport(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
 
-  // 如果陣列為空（例如作廢後被清空），就重新向雲端抓取
   if (allReportData.length === 0) {
     summaryDiv.innerHTML = ""; detailedBody.innerHTML = "";
     loadingDiv.style.display = "block";
@@ -118,17 +117,12 @@ function processReportData(filterType) {
   let detailedHTML = "";
 
   allReportData.forEach(row => {
-    // 【重點防呆】只要是作廢的，徹底跳過，完全不計入任何統計與明細
-    if (row["單據狀態"] === "作廢") return; 
-
     const rowDate = new Date(row["結帳時間"]);
+    // 【防呆辨識】看到作廢字樣，金額直接視為 0
+    const isVoid = (row["單據狀態"] === "作廢");
+    const actualAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
+
     let isMatch = false;
-
-    // 計算今日總額 
-    if (rowDate.toDateString() === now.toDateString()) {
-      todayTotal += parseInt(row["總金額"]) || 0;
-    }
-
     if (filterType === 'today') { isMatch = (rowDate.toDateString() === now.toDateString()); } 
     else if (filterType === 'month') { isMatch = (rowDate.getMonth() === now.getMonth() && rowDate.getFullYear() === now.getFullYear()); } 
     else if (filterType === 'week') {
@@ -136,37 +130,47 @@ function processReportData(filterType) {
       isMatch = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7);
     }
 
-    // 若符合日期區間，則計入老師業績並產生詳細表格
+    // 計算今日總額 
+    if (rowDate.toDateString() === now.toDateString()) {
+      todayTotal += actualAmount;
+    }
+
     if (isMatch) {
       let itemsStr = "";
       try {
         const items = JSON.parse(row["購買明細(JSON)"]);
         items.forEach(item => {
-          if(techRevenue[item.technician] !== undefined) { techRevenue[item.technician] += parseInt(item.price) || 0; }
+          // 若沒被作廢，才將金額加給操作老師
+          if(!isVoid && techRevenue[item.technician] !== undefined) { 
+            techRevenue[item.technician] += parseInt(item.price) || 0; 
+          }
         });
         itemsStr = items.map(i => `${i.item_name}(${i.technician})`).join('<br>');
       } catch(e) { itemsStr = "資料讀取錯誤"; }
 
       const timeStr = `${String(rowDate.getHours()).padStart(2,'0')}:${String(rowDate.getMinutes()).padStart(2,'0')}`;
+      
+      // 若是作廢單據，加上刪除線與紅色註記
+      const displayAmount = isVoid 
+        ? `<span style="text-decoration:line-through; color:#aaa; font-size:0.9em;">$${row["總金額"]}</span><br><strong style="color:#d9534f;">$0 [已作廢]</strong>`
+        : `<strong>$${row["總金額"]}</strong>`;
+      const rowStyle = isVoid ? `background-color: #fdf5f5; color: #a0a0a0;` : ``;
+
       detailedHTML += `
-        <tr>
+        <tr style="${rowStyle}">
           <td>${timeStr}</td>
           <td>${row["會員名稱"]}</td>
-          <td style="font-size:0.9em; line-height:1.4;">${itemsStr}</td>
-          <td style="color:var(--danger-color); font-weight:bold;">$${row["總金額"]}</td>
+          <td style="font-size:0.9em; line-height:1.4; text-align:left;">${itemsStr}</td>
+          <td style="color:var(--text-dark); font-size:1.1em;">${displayAmount}</td>
         </tr>
       `;
     }
   });
 
-  // 更新今日總額看板
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${todayTotal.toLocaleString()}`;
-
-  // 更新詳細明細表格
   const detailedBody = document.getElementById("detailedReportBody");
-  detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間尚無有效結帳明細</td></tr>`;
+  detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間尚無結帳明細</td></tr>`;
 
-  // 更新老師業績小卡
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   technicians.forEach(t => {
@@ -181,12 +185,12 @@ function processReportData(filterType) {
 }
 
 // ==========================================
-// 單據查詢與作廢管理邏輯
+// 單據查詢與徹底隱藏作廢管理
 // ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
   document.getElementById("voidQueryDate").value = new Date().toISOString().split('T')[0];
-  document.getElementById("voidListContainer").innerHTML = '<p style="text-align:center; color:#888;">請點擊查詢載入單據...</p>';
+  document.getElementById("voidListContainer").innerHTML = '<p style="text-align:center; color:#888;">請點選右上方「查詢單據」載入紀錄...</p>';
 }
 
 function fetchVoidList() {
@@ -206,7 +210,7 @@ function fetchVoidList() {
         container.innerHTML = "";
         let hasData = false;
         res.data.forEach(row => {
-          // 【徹底隱藏】只要這筆訂單是作廢的，它就不會出現在這裡！完全消失！
+          // 【絕對隱藏】只要狀態為作廢，直接從「待作廢查詢清單」中消失，不能被二次查詢
           if (row["單據狀態"] === "作廢") return; 
 
           const rowDate = new Date(row["結帳時間"]);
@@ -218,22 +222,22 @@ function fetchVoidList() {
             div.innerHTML = `
               <div>
                 <strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br>
-                <span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 金額：$${row["總金額"]}</span>
+                <span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span>
               </div>
               <div>
-                <button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">作廢此單</button>
+                <button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button>
               </div>
             `;
             container.appendChild(div);
           }
         });
-        if(!hasData) container.innerHTML = "<p style='text-align:center; padding:20px; color:#999;'>該日無可作廢之正常單據</p>";
+        if(!hasData) container.innerHTML = "<p style='text-align:center; padding:20px; color:#999;'>該日目前沒有可以作廢的正常單據</p>";
       }
     });
 }
 
 function executeVoid(orderId, checkoutTime) {
-  if (!confirm(`確定要作廢這筆單據嗎？作廢後將永遠從系統畫面中移除！`)) return;
+  if (!confirm(`確定要作廢這筆單據嗎？作廢後業績將歸零，並無法再撤銷！`)) return;
   
   const container = document.getElementById("voidListContainer");
   container.innerHTML = "<p style='text-align:center; font-weight:bold; color:var(--danger-color);'>作廢處理中，請勿關閉視窗...</p>";
@@ -245,13 +249,10 @@ function executeVoid(orderId, checkoutTime) {
   })
   .then(res => res.json())
   .then(result => {
-    alert("作廢成功！系統正在重新整理資料...");
-    // 【關鍵步驟】清空快取陣列，這樣再次讀取報表時，就會去雲端拿最新沒有這筆訂單的資料
-    allReportData = []; 
-    // 重新載入剛才查詢的日期列表 (會發現那筆訂單徹底消失了)
-    fetchVoidList(); 
-    // 背景同步重新計算首頁報表
-    loadReport(currentFilter); 
+    alert("作廢成功！系統將自動刷新帳務...");
+    allReportData = []; // 清空快取
+    fetchVoidList(); // 重新整理查詢清單
+    loadReport(currentFilter); // 重新計算外層報表
   })
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
