@@ -76,6 +76,11 @@
     .dashboard-highlight h3 { margin: 0 0 10px 0; font-size: 1.2em; font-weight: normal; color: white;}
     .dashboard-highlight .big-number { font-size: 2.5em; font-weight: bold; margin: 0; }
 
+    /* 💵 現金流小卡樣式 */
+    .cashflow-box { background: #FAF5F0; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; }
+    .cashflow-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-around; margin-top: 10px; }
+    .cashflow-item { background: white; padding: 10px 15px; border-radius: 6px; border: 1px solid var(--border-color); text-align: center; flex: 1; min-width: 90px; font-weight: bold; font-size: 0.95em; }
+
     .admin-tools { background: #FDE8E8; border: 1px solid #E8B3B3; padding: 15px; border-radius: 8px; margin-top: 30px; text-align: center; }
     .admin-tools h3 { margin-top: 0; color: #B35B5B; }
     .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em;}
@@ -154,7 +159,6 @@
         <thead>
           <tr>
             <th>服務細項</th>
-            <!-- 💡 這裡已經幫你把「調理人員」改成「操作老師」了 -->
             <th>操作老師</th>
             <th>單價 (NT$)</th>
             <th style="width: 80px;">數量</th> 
@@ -184,6 +188,14 @@
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
+    <!-- 💵 當日現金流結算區塊 (僅在今日或特定日期顯示) -->
+    <div id="cashFlowBox" class="cashflow-box">
+      <h4 style="margin: 0 0 5px 0; text-align: center; color: var(--text-dark);">💵 當日現金流結算 (依收款方式統計)</h4>
+      <div class="cashflow-grid" id="cashFlowGrid">
+        <!-- 動態產生 -->
+      </div>
+    </div>
+
     <div class="report-controls">
       <button id="filter-today" class="active" onclick="loadReport('today')">今日業績</button>
       <button id="filter-week" onclick="loadReport('week')">本週業績</button>
@@ -198,14 +210,14 @@
     <div class="report-summary" id="reportSummary"></div>
 
     <div id="detailedReportContainer" style="margin-bottom: 30px;">
-      <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">📋 詳細對帳明細</h3>
+      <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">📋 對帳明細表</h3>
       <div style="overflow-x: auto;">
         <table class="detailed-table">
           <thead>
             <tr>
               <th style="width:25%">時間</th>
-              <th style="width:15%">顧客資訊</th>
-              <th style="width:40%">消費項目 (老師)</th>
+              <th style="width:20%">顧客資訊</th>
+              <th style="width:35%">消費項目 (老師)</th>
               <th style="width:20%">金額</th>
             </tr>
           </thead>
