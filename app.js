@@ -76,15 +76,10 @@ function renderSubItems(category) {
   }
 }
 
-// 🛒 將項目加入購物車 
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
-  
-  // 1. 取得目前「開單櫃台」選中的人員
   const currentCashier = document.getElementById("cashier").value;
-
-  // 2. 單純產生下拉選單選項，移除在這邊寫 selected (避免瀏覽器吃掉設定)
   const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
 
   const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
@@ -95,13 +90,8 @@ function addToCart(itemName, itemPrice) {
                   <td>${inputHTML}</td>
                   <td>${qtyHTML}</td>
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
-                  
-  // 3. 將整列加入到表格中                
   tbody.appendChild(tr); 
-  
-  // 💡 4. 【強制寫入連動】透過 JavaScript DOM 直接鎖定剛剛加入的選單，並強制指定它的值！
   tr.querySelector(".item-tech").value = currentCashier;
-
   calculateTotal();
 }
 
@@ -121,7 +111,7 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (純字串比對，徹底消除時區問題)
+// 店務報表 (含現金流統計與單日明細支付方式標註)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
@@ -179,6 +169,10 @@ function processReportData(filterType) {
   }
 
   let techRevenue = {}; technicians.forEach(t => techRevenue[t] = 0);
+  
+  // 💵 現金流統計物件
+  let cashFlow = { "現金": 0, "刷卡": 0, "匯款": 0, "扣堂": 0, "儲值金": 0 };
+
   let filteredTotal = 0; 
   let detailedHTML = "";
 
@@ -201,7 +195,18 @@ function processReportData(filterType) {
     }
 
     if (isMatch) {
-      filteredTotal += isVoid ? 0 : (parseInt(row["總金額"]) || 0);
+      const rowAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
+      filteredTotal += rowAmount;
+
+      // 💵 若非作廢，統計現金流
+      if (!isVoid) {
+        let method = row["收款方式"] || "現金";
+        if (cashFlow[method] !== undefined) {
+          cashFlow[method] += rowAmount;
+        } else {
+          cashFlow["現金"] += rowAmount; // 預設防呆
+        }
+      }
 
       let items = [];
       try { items = JSON.parse(row["購買明細(JSON)"]); } catch(e) {}
@@ -235,6 +240,13 @@ function processReportData(filterType) {
       
       const phoneDisplay = row["手機號碼"] ? `<br><span style="font-size:0.85em; color:#666;">📞 ${row["手機號碼"]}</span>` : "";
 
+      // 💡 僅在「今日」或「特定日期」的明細中標註支付方式
+      let paymentBadge = "";
+      if (filterType === 'today' || filterType === 'custom') {
+        const pMethod = row["收款方式"] || "現金";
+        paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">💳 ${pMethod}</span>`;
+      }
+
       const displayAmount = isVoid 
         ? `<span style="text-decoration:line-through; color:#aaa; font-size:0.9em;">$${rowTotalAmount}</span><br><strong style="color:#d9534f;">$0 [已作廢]</strong>`
         : `<strong>$${rowTotalAmount}</strong>`;
@@ -243,13 +255,29 @@ function processReportData(filterType) {
       detailedHTML += `
         <tr style="${rowStyle}">
           <td style="font-size:0.85em;">${displayTime}</td>
-          <td>${row["會員名稱"]} ${phoneDisplay}</td>
+          <td>${row["會員名稱"]} ${phoneDisplay} ${paymentBadge}</td>
           <td style="font-size:0.9em; line-height:1.4; text-align:left;">${itemsStr}</td>
           <td style="color:var(--text-dark); font-size:1.1em;">${displayAmount}</td>
         </tr>
       `;
     }
   });
+
+  // 💵 控制現金流面板的顯示與數值填入 (僅今日與特定日期顯示)
+  const cashFlowBox = document.getElementById("cashFlowBox");
+  const cashFlowGrid = document.getElementById("cashFlowGrid");
+  if (filterType === 'today' || filterType === 'custom') {
+    cashFlowBox.style.display = "block";
+    cashFlowGrid.innerHTML = `
+      <div class="cashflow-item">💵 現金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["現金"].toLocaleString()}</span></div>
+      <div class="cashflow-item">💳 刷卡<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["刷卡"].toLocaleString()}</span></div>
+      <div class="cashflow-item">🏦 匯款<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["匯款"].toLocaleString()}</span></div>
+      <div class="cashflow-item">🎫 扣堂<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["扣堂"].toLocaleString()}</span></div>
+      <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
+    `;
+  } else {
+    cashFlowBox.style.display = "none";
+  }
 
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
   document.getElementById("dashboardTotalTitle").innerText = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
