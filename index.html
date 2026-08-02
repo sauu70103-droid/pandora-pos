@@ -64,7 +64,6 @@
     .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s;}
     .report-controls button.active { background: var(--primary-color); color: white; }
     .report-controls input[type="date"] { width: auto; padding: 7px 15px; border: 2px solid var(--border-color); border-radius: 20px; background: white; font-weight: bold; cursor: pointer;}
-    .report-controls input[type="date"]:focus { border-color: var(--primary-color); }
     
     .report-summary { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; cursor: pointer; transition: 0.2s; }
@@ -76,7 +75,6 @@
     .dashboard-highlight h3 { margin: 0 0 10px 0; font-size: 1.2em; font-weight: normal; color: white;}
     .dashboard-highlight .big-number { font-size: 2.5em; font-weight: bold; margin: 0; }
 
-    /* 💵 現金流小卡樣式 */
     .cashflow-box { background: #FAF5F0; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; }
     .cashflow-grid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-around; margin-top: 10px; }
     .cashflow-item { background: white; padding: 10px 15px; border-radius: 6px; border: 1px solid var(--border-color); text-align: center; flex: 1; min-width: 90px; font-weight: bold; font-size: 0.95em; }
@@ -85,6 +83,11 @@
     .admin-tools h3 { margin-top: 0; color: #B35B5B; }
     .admin-btns button { background: white; border: 1px solid #B35B5B; color: #B35B5B; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em;}
     .admin-btns button:hover { background: #B35B5B; color: white; }
+
+    .archive-section { background: #EBF3EA; border: 1px solid #B4D3B2; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: center; }
+    .archive-section h3 { margin-top: 0; color: #4B7946; }
+    .btn-archive { background: var(--success-color); color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: 0.2s; }
+    .btn-archive:hover { background: #739470; }
 
     #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
@@ -118,7 +121,6 @@
     <button id="tab-report" onclick="switchTab('report')">店務與對帳報表</button>
   </div>
 
-  <!-- 結帳頁面 -->
   <div id="content-checkout" class="tab-content active">
     <div>
       <h1>數位 POS 結帳單</h1>
@@ -181,19 +183,15 @@
     <button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
   </div>
 
-  <!-- 報表頁面 -->
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
       <h3 id="dashboardTotalTitle">該區間結帳總額 (已扣除作廢)</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
-    <!-- 💵 當日現金流結算區塊 (僅在今日或特定日期顯示) -->
     <div id="cashFlowBox" class="cashflow-box">
       <h4 style="margin: 0 0 5px 0; text-align: center; color: var(--text-dark);">💵 當日現金流結算 (依收款方式統計)</h4>
-      <div class="cashflow-grid" id="cashFlowGrid">
-        <!-- 動態產生 -->
-      </div>
+      <div class="cashflow-grid" id="cashFlowGrid"></div>
     </div>
 
     <div class="report-controls">
@@ -209,7 +207,7 @@
     <h4 style="color:#888; text-align:center; margin-bottom:5px;">💡 點擊老師卡片即可篩選該老師專屬明細</h4>
     <div class="report-summary" id="reportSummary"></div>
 
-    <div id="detailedReportContainer" style="margin-bottom: 30px;">
+    <div id="detailedReportContainer" style="margin-bottom: 20px;">
       <h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">📋 對帳明細表</h3>
       <div style="overflow-x: auto;">
         <table class="detailed-table">
@@ -221,11 +219,15 @@
               <th style="width:20%">金額</th>
             </tr>
           </thead>
-          <tbody id="detailedReportBody">
-            <!-- 動態產生 -->
-          </tbody>
+          <tbody id="detailedReportBody"></tbody>
         </table>
       </div>
+    </div>
+
+    <div class="archive-section" id="archiveSection" style="display:none;">
+      <h3>📁 業績審核與歸檔</h3>
+      <p style="font-size:0.9em; color:#555; margin-top:0;">確認今日／指定日期之對帳與現金流無誤後，即可點擊下方按鈕將業績正式歸檔寫入分潤資料表。</p>
+      <button class="btn-archive" onclick="executeArchive()">📁 確認無誤，執行業績歸檔</button>
     </div>
 
     <div class="admin-tools">
@@ -239,7 +241,6 @@
 
 </div>
 
-<!-- 簽名與作廢隱藏區塊維持不變 -->
 <div id="signatureModal" class="modal">
   <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
