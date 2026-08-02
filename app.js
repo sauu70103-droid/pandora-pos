@@ -76,11 +76,17 @@ function renderSubItems(category) {
   }
 }
 
+// 🛒 雙重強制連動開單人員與操作老師
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
   const currentCashier = document.getElementById("cashier").value;
-  const techOptions = technicians.map(t => `<option value="${t}">${t}</option>`).join('');
+  
+  // 第一重防護：直接在 HTML 字串中寫入 selected
+  const techOptions = technicians.map(t => {
+    const isSelected = (t === currentCashier) ? "selected" : "";
+    return `<option value="${t}" ${isSelected}>${t}</option>`;
+  }).join('');
 
   const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   const qtyHTML = `<input type="number" class="item-qty" value="1" min="1" oninput="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">`;
@@ -91,6 +97,8 @@ function addToCart(itemName, itemPrice) {
                   <td>${qtyHTML}</td>
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); 
+  
+  // 第二重防護：使用 DOM 強制指定值
   tr.querySelector(".item-tech").value = currentCashier;
   calculateTotal();
 }
@@ -111,11 +119,12 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (含現金流統計與單日明細支付方式標註)
+// 店務報表 (安全時間解析，絕對不掉資料)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
+let loadedMonth = ""; 
 
 function toggleTechFilter(techName) {
   if (currentTechFilter === techName) currentTechFilter = null; 
@@ -128,24 +137,31 @@ function loadReport(filterType) {
   currentTechFilter = null; 
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   
+  let reqMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+
   if (filterType !== 'custom') {
     document.getElementById('filter-' + filterType).classList.add('active');
     document.getElementById('customDateFilter').value = ""; 
+  } else {
+    const customDate = document.getElementById("customDateFilter").value;
+    if (!customDate) return; 
+    reqMonth = customDate.split('-')[1]; // 從自訂日期抓月份
   }
   
   const summaryDiv = document.getElementById("reportSummary");
   const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
 
-  if (allReportData.length === 0) {
+  // 💡 安全機制：若陣列為空，或是選到「別的月份」的自訂日期，強制重新去雲端撈資料！
+  if (allReportData.length === 0 || loadedMonth !== reqMonth) {
     summaryDiv.innerHTML = ""; detailedBody.innerHTML = "";
     loadingDiv.style.display = "block";
-    const now = new Date();
-    fetch(GAS_URL + "?month=" + String(now.getMonth() + 1).padStart(2, '0'))
+    fetch(GAS_URL + "?month=" + reqMonth)
       .then(res => res.json())
       .then(res => {
         if(res.status === "success") { 
           allReportData = res.data; 
+          loadedMonth = reqMonth;
           processReportData(filterType); 
         }
         loadingDiv.style.display = "none";
@@ -158,7 +174,6 @@ function loadReport(filterType) {
 function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
-  
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const thisMonthStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
   
@@ -169,16 +184,17 @@ function processReportData(filterType) {
   }
 
   let techRevenue = {}; technicians.forEach(t => techRevenue[t] = 0);
-  
-  // 💵 現金流統計物件
   let cashFlow = { "現金": 0, "刷卡": 0, "匯款": 0, "扣堂": 0, "儲值金": 0 };
-
   let filteredTotal = 0; 
   let detailedHTML = "";
 
   allReportData.forEach(row => {
+    // 💡 超級防呆時間解析器：把各種奇怪的斜線換算成標準 JS Date
     const rawTimeStr = String(row["結帳時間"]);
-    const rowDateStr = rawTimeStr.substring(0, 10).replace(/\//g, '-'); 
+    let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
+    if (isNaN(rowDateObj.getTime())) return; // 避開完全無效的空行
+
+    const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
     const isVoid = (row["單據狀態"] === "作廢");
 
     let isMatch = false;
@@ -189,7 +205,6 @@ function processReportData(filterType) {
     } else if (filterType === 'month') { 
       isMatch = rowDateStr.startsWith(thisMonthStr); 
     } else if (filterType === 'week') {
-      const rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
       const diffTime = Math.abs(now - rowDateObj);
       isMatch = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7);
     }
@@ -198,13 +213,12 @@ function processReportData(filterType) {
       const rowAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
       filteredTotal += rowAmount;
 
-      // 💵 若非作廢，統計現金流
       if (!isVoid) {
         let method = row["收款方式"] || "現金";
         if (cashFlow[method] !== undefined) {
           cashFlow[method] += rowAmount;
         } else {
-          cashFlow["現金"] += rowAmount; // 預設防呆
+          cashFlow["現金"] += rowAmount;
         }
       }
 
@@ -233,14 +247,9 @@ function processReportData(filterType) {
         return `${i.item_name}${qtyDisplay} (${i.technician})`;
       }).join('<br>');
 
-      let displayTime = rawTimeStr;
-      if(displayTime.length > 10) {
-         displayTime = `${rowDateStr} <br> ${rawTimeStr.substring(11,16)}`;
-      }
-      
+      const displayTime = `${rowDateStr} <br> ${pad(rowDateObj.getHours())}:${pad(rowDateObj.getMinutes())}`;
       const phoneDisplay = row["手機號碼"] ? `<br><span style="font-size:0.85em; color:#666;">📞 ${row["手機號碼"]}</span>` : "";
 
-      // 💡 僅在「今日」或「特定日期」的明細中標註支付方式
       let paymentBadge = "";
       if (filterType === 'today' || filterType === 'custom') {
         const pMethod = row["收款方式"] || "現金";
@@ -263,11 +272,13 @@ function processReportData(filterType) {
     }
   });
 
-  // 💵 控制現金流面板的顯示與數值填入 (僅今日與特定日期顯示)
   const cashFlowBox = document.getElementById("cashFlowBox");
   const cashFlowGrid = document.getElementById("cashFlowGrid");
+  const archiveSection = document.getElementById("archiveSection");
+
   if (filterType === 'today' || filterType === 'custom') {
     cashFlowBox.style.display = "block";
+    archiveSection.style.display = "block";
     cashFlowGrid.innerHTML = `
       <div class="cashflow-item">💵 現金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["現金"].toLocaleString()}</span></div>
       <div class="cashflow-item">💳 刷卡<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["刷卡"].toLocaleString()}</span></div>
@@ -277,6 +288,7 @@ function processReportData(filterType) {
     `;
   } else {
     cashFlowBox.style.display = "none";
+    archiveSection.style.display = "none";
   }
 
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
@@ -300,8 +312,41 @@ function processReportData(filterType) {
   if(!hasData) summaryDiv.innerHTML = "<div class='report-card' style='justify-content:center; color:#999;'>該區間尚無業績資料</div>";
 }
 
+function executeArchive() {
+  let targetDate = "";
+  const now = new Date();
+  const pad = num => String(num).padStart(2, '0');
+  
+  if (currentFilter === 'today') {
+    targetDate = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  } else if (currentFilter === 'custom') {
+    targetDate = document.getElementById("customDateFilter").value;
+  }
+  
+  if (!targetDate) return alert("請先選擇要歸檔的特定日期（或切換至今日業績）！");
+  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔寫入分潤資料表嗎？`)) return;
+  
+  const archiveBtn = document.querySelector(".btn-archive");
+  archiveBtn.disabled = true; archiveBtn.innerText = "正在寫入分潤資料表，請稍候...";
+  
+  fetch(GAS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "archive", target_date: targetDate })
+  })
+  .then(res => res.json())
+  .then(result => {
+    alert(result.message);
+    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行業績歸檔";
+  })
+  .catch(err => {
+    alert("歸檔發生錯誤，請檢查網路連線。");
+    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行業績歸檔";
+  });
+}
+
 // ==========================================
-// 單據查詢與作廢管理 
+// 單據查詢與作廢管理 (日期安全解析法)
 // ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
@@ -327,7 +372,13 @@ function fetchVoidList() {
         res.data.forEach(row => {
           if (row["單據狀態"] === "作廢") return; 
 
-          const rowDateStr = String(row["結帳時間"]).substring(0, 10).replace(/\//g, '-');
+          const rawTimeStr = String(row["結帳時間"]);
+          let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
+          if (isNaN(rowDateObj.getTime())) return;
+          
+          const pad = num => String(num).padStart(2, '0');
+          const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
+
           if (rowDateStr === targetDateStr) {
             hasData = true;
             const div = document.createElement("div");
@@ -364,7 +415,8 @@ function executeVoid(orderId, checkoutTime) {
   .then(res => res.json())
   .then(result => {
     alert("作廢成功！系統將自動刷新帳務...");
-    allReportData = []; 
+    allReportData = []; // 清空快取
+    loadedMonth = "";
     fetchVoidList(); 
     loadReport(currentFilter); 
   })
