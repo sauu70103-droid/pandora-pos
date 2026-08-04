@@ -20,8 +20,18 @@ const menuData = {
   "💧 卸甲": { "卸甲(他店續做)": 300, "卸甲(本店不續做)": 300, "卸甲(他店不續做)": 500, "卸甲(本店續做)": 200 },
   "🛍️ 產品": { "特殊甲產品-修甲套組": 1500, "特殊甲產品-防潮平衡液": 280, "特殊甲產品-BAOGAAO": 350, "特殊甲產品-灰指甲修護液": 980, "特殊甲產品-淨銀乳": 680, "特殊甲產品-磨板類": 40, "特殊甲產品-煥采抗菌噴霧": 480, "指緣修護油": 280, "指緣軟化液": 350, "鈣元素硬甲油": 375, "手足滋潤修護霜": 280 },
   "🪒 除毛": { "腋下": 400, "腳趾/手指": 250, "全背": 800, "小花": 300, "小腿": 800, "大腿": 800, "上手臂/小手臂": 700, "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299 },
-  "💰 定金及加費": { "定金": 500, "定金（抵扣）": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
+  "💰 定金及加費": { "定金": 500, "定金(抵扣)": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
 };
+
+// 💡 輔助函式：透過細項名稱反查大項目類別
+function getCategoryByItemName(itemName) {
+  for (const category in menuData) {
+    if (menuData[category][itemName] !== undefined) {
+      return category;
+    }
+  }
+  return "其他項目"; 
+}
 
 window.onload = () => { 
   initCheckoutTime();
@@ -116,12 +126,29 @@ function calculateTotal() {
 }
 
 // ==========================================
-// 店務報表 (安全時間解析，絕對不掉資料)
+// 店務報表 (精準日曆演算法)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
-let loadedMonth = ""; 
+let loadedMonthStr = ""; 
+
+// 💡 確保取得精確的週一到週日午夜時間戳記
+function getWeekBoundaries(baseDate) {
+  const dateObj = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  const day = dateObj.getDay();
+  const diffToMonday = day === 0 ? 6 : day - 1; 
+  
+  const startOfWeek = new Date(dateObj);
+  startOfWeek.setDate(dateObj.getDate() - diffToMonday);
+  startOfWeek.setHours(0, 0, 0, 0); 
+  
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999); 
+  
+  return { startOfWeek, endOfWeek };
+}
 
 function toggleTechFilter(techName) {
   if (currentTechFilter === techName) currentTechFilter = null; 
@@ -134,30 +161,42 @@ function loadReport(filterType) {
   currentTechFilter = null; 
   document.querySelectorAll('.report-controls button').forEach(b => b.classList.remove('active'));
   
-  let reqMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+  const now = new Date();
+  let reqMonths = [String(now.getMonth() + 1).padStart(2, '0')]; 
 
   if (filterType !== 'custom') {
     document.getElementById('filter-' + filterType).classList.add('active');
     document.getElementById('customDateFilter').value = ""; 
+    
+    if (filterType === 'week') {
+       const bounds = getWeekBoundaries(now);
+       const startM = String(bounds.startOfWeek.getMonth() + 1).padStart(2, '0');
+       const endM = String(bounds.endOfWeek.getMonth() + 1).padStart(2, '0');
+       if (startM !== endM) {
+           reqMonths = [startM, endM]; 
+       }
+    }
   } else {
     const customDate = document.getElementById("customDateFilter").value;
     if (!customDate) return; 
-    reqMonth = customDate.split('-')[1]; 
+    reqMonths = [customDate.split('-')[1]]; 
   }
+  
+  const reqMonthStr = reqMonths.join(','); 
   
   const summaryDiv = document.getElementById("reportSummary");
   const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
 
-  if (allReportData.length === 0 || loadedMonth !== reqMonth) {
+  if (allReportData.length === 0 || loadedMonthStr !== reqMonthStr) {
     summaryDiv.innerHTML = ""; detailedBody.innerHTML = "";
     loadingDiv.style.display = "block";
-    fetch(GAS_URL + "?month=" + reqMonth)
+    fetch(GAS_URL + "?month=" + reqMonthStr)
       .then(res => res.json())
       .then(res => {
         if(res.status === "success") { 
           allReportData = res.data; 
-          loadedMonth = reqMonth;
+          loadedMonthStr = reqMonthStr;
           processReportData(filterType); 
         }
         loadingDiv.style.display = "none";
@@ -172,7 +211,8 @@ function processReportData(filterType) {
   const pad = num => String(num).padStart(2, '0');
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const thisMonthStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
-  
+  const bounds = getWeekBoundaries(now);
+
   let customDateStr = "";
   if (filterType === 'custom') {
     customDateStr = document.getElementById("customDateFilter").value;
@@ -184,14 +224,21 @@ function processReportData(filterType) {
   let filteredTotal = 0; 
   let detailedHTML = "";
 
+  // 💡 圖示對照表
+  const paymentIcons = {
+    "現金": "💵",
+    "刷卡": "💳",
+    "匯款": "🏦",
+    "扣堂": "🎫",
+    "儲值金": "💎"
+  };
+
   allReportData.forEach(row => {
     const rawTimeStr = String(row["結帳時間"]);
     let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
     if (isNaN(rowDateObj.getTime())) return; 
 
     const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
-    
-    // 💡 同步讀取新的狀態欄位名稱
     const isVoid = (row["收據明細狀態"] === "作廢");
 
     let isMatch = false;
@@ -202,8 +249,11 @@ function processReportData(filterType) {
     } else if (filterType === 'month') { 
       isMatch = rowDateStr.startsWith(thisMonthStr); 
     } else if (filterType === 'week') {
-      const diffTime = Math.abs(now - rowDateObj);
-      isMatch = (Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7);
+      // 💡 最精準的比對方式：將資料庫時間也轉為純粹的「年月日午夜戳記」，杜絕跨日干擾
+      const rowMidnight = new Date(rowDateObj.getFullYear(), rowDateObj.getMonth(), rowDateObj.getDate()).getTime();
+      const startMidnight = bounds.startOfWeek.getTime();
+      const endMidnight = bounds.endOfWeek.getTime();
+      isMatch = (rowMidnight >= startMidnight && rowMidnight <= endMidnight);
     }
 
     if (isMatch) {
@@ -238,19 +288,24 @@ function processReportData(filterType) {
         rowTotalAmount = displayItems.reduce((sum, item) => sum + ((parseInt(item.price) || 0) * (parseInt(item.qty) || 1)), 0);
       }
 
+      // 💡 套用完美格式：大項目＿細項目*數量-(金額)
       const itemsStr = displayItems.map(i => {
         let qty = parseInt(i.qty) || 1;
-        let qtyDisplay = qty > 1 ? ` <span style="color:#d9534f;font-weight:bold;">x${qty}</span>` : "";
-        return `${i.item_name}${qtyDisplay} (${i.technician})`;
+        let price = parseInt(i.price) || 0;
+        let subtotal = Math.abs(price * qty);
+        let category = getCategoryByItemName(i.item_name);
+        let priceDisplay = (i.item_name.includes("抵扣")) ? `-$${subtotal}` : `$${subtotal}`;
+        return `${category}＿${i.item_name} * ${qty} - (${priceDisplay}) (${i.technician})`;
       }).join('<br>');
 
       const displayTime = `${rowDateStr} <br> ${pad(rowDateObj.getHours())}:${pad(rowDateObj.getMinutes())}`;
       const phoneDisplay = row["手機號碼"] ? `<br><span style="font-size:0.85em; color:#666;">📞 ${row["手機號碼"]}</span>` : "";
 
       let paymentBadge = "";
-      if (filterType === 'today' || filterType === 'custom') {
+      if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
         const pMethod = row["收款方式"] || "現金";
-        paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">💳 ${pMethod}</span>`;
+        const pIcon = paymentIcons[pMethod] || "💳"; // 💡 套用付款圖示
+        paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon} ${pMethod}</span>`;
       }
 
       const displayAmount = isVoid 
@@ -262,7 +317,7 @@ function processReportData(filterType) {
         <tr style="${rowStyle}">
           <td style="font-size:0.85em;">${displayTime}</td>
           <td>${row["會員名稱"]} ${phoneDisplay} ${paymentBadge}</td>
-          <td style="font-size:0.9em; line-height:1.4; text-align:left;">${itemsStr}</td>
+          <td style="font-size:0.9em; line-height:1.5; text-align:left;">${itemsStr}</td>
           <td style="color:var(--text-dark); font-size:1.1em;">${displayAmount}</td>
         </tr>
       `;
@@ -288,8 +343,16 @@ function processReportData(filterType) {
     archiveSection.style.display = "none";
   }
 
+  // 💡 視覺化標題，讓用戶一眼確認過濾的日期範圍
+  let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
+  if (filterType === 'week') {
+    const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
+    const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
+    displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) - ${currentTechFilter}` : `本週業績 (${startStr} ~ ${endStr})`;
+  }
+  
+  document.getElementById("dashboardTotalTitle").innerText = displayTitle;
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
-  document.getElementById("dashboardTotalTitle").innerText = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
 
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
@@ -343,7 +406,7 @@ function executeArchive() {
 }
 
 // ==========================================
-// 單據查詢與作廢管理 (日期安全解析法)
+// 單據查詢與作廢管理
 // ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
@@ -367,7 +430,6 @@ function fetchVoidList() {
         container.innerHTML = "";
         let hasData = false;
         res.data.forEach(row => {
-          // 💡 同步讀取新的狀態欄位名稱
           if (row["收據明細狀態"] === "作廢") return; 
 
           const rawTimeStr = String(row["結帳時間"]);
@@ -414,7 +476,7 @@ function executeVoid(orderId, checkoutTime) {
   .then(result => {
     alert("作廢成功！系統將自動刷新帳務...");
     allReportData = []; // 清空快取
-    loadedMonth = "";
+    loadedMonthStr = "";
     fetchVoidList(); 
     loadReport(currentFilter); 
   })
