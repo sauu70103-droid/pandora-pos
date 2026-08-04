@@ -86,6 +86,7 @@ function renderSubItems(category) {
   }
 }
 
+// 💡 更新：將數量的輸入框改為 1~20 的下拉式選單
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -96,8 +97,20 @@ function addToCart(itemName, itemPrice) {
     return `<option value="${t}" ${isSelected}>${t}</option>`;
   }).join('');
 
-  const inputHTML = (itemPrice === "*") ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
-  const qtyHTML = `<input type="number" class="item-qty" value="1" min="1" oninput="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px;">`;
+  const inputHTML = (itemPrice === "*") 
+    ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` 
+    : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
+  
+  // 建立 1 到 20 的選項
+  let qtyOptions = "";
+  for (let i = 1; i <= 20; i++) {
+    qtyOptions += `<option value="${i}">${i}</option>`;
+  }
+  
+  // 組合成 select 標籤，並將 oninput 改為 onchange
+  const qtyHTML = `<select class="item-qty" onchange="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background-color: #FCFAFA; font-size: 1em; cursor: pointer;">
+                     ${qtyOptions}
+                   </select>`;
   
   tr.innerHTML = `<td style="text-align:left; font-weight:bold;"><input type="hidden" class="item-name" value="${itemName}">${itemName}</td>
                   <td><select class="item-tech">${techOptions}</select></td>
@@ -133,7 +146,6 @@ let currentFilter = 'today';
 let currentTechFilter = null; 
 let loadedMonthStr = ""; 
 
-// 💡 確保取得精確的週一到週日午夜時間戳記
 function getWeekBoundaries(baseDate) {
   const dateObj = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
   const day = dateObj.getDay();
@@ -224,7 +236,6 @@ function processReportData(filterType) {
   let filteredTotal = 0; 
   let detailedHTML = "";
 
-  // 💡 圖示對照表
   const paymentIcons = {
     "現金": "💵",
     "刷卡": "💳",
@@ -249,7 +260,6 @@ function processReportData(filterType) {
     } else if (filterType === 'month') { 
       isMatch = rowDateStr.startsWith(thisMonthStr); 
     } else if (filterType === 'week') {
-      // 💡 最精準的比對方式：將資料庫時間也轉為純粹的「年月日午夜戳記」，杜絕跨日干擾
       const rowMidnight = new Date(rowDateObj.getFullYear(), rowDateObj.getMonth(), rowDateObj.getDate()).getTime();
       const startMidnight = bounds.startOfWeek.getTime();
       const endMidnight = bounds.endOfWeek.getTime();
@@ -288,7 +298,6 @@ function processReportData(filterType) {
         rowTotalAmount = displayItems.reduce((sum, item) => sum + ((parseInt(item.price) || 0) * (parseInt(item.qty) || 1)), 0);
       }
 
-      // 💡 套用完美格式：大項目＿細項目*數量-(金額)
       const itemsStr = displayItems.map(i => {
         let qty = parseInt(i.qty) || 1;
         let price = parseInt(i.price) || 0;
@@ -304,7 +313,7 @@ function processReportData(filterType) {
       let paymentBadge = "";
       if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
         const pMethod = row["收款方式"] || "現金";
-        const pIcon = paymentIcons[pMethod] || "💳"; // 💡 套用付款圖示
+        const pIcon = paymentIcons[pMethod] || "💳"; 
         paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon} ${pMethod}</span>`;
       }
 
@@ -343,7 +352,6 @@ function processReportData(filterType) {
     archiveSection.style.display = "none";
   }
 
-  // 💡 視覺化標題，讓用戶一眼確認過濾的日期範圍
   let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
   if (filterType === 'week') {
     const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
