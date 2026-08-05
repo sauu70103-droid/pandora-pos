@@ -7,13 +7,15 @@ let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
-const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定"];
+
+// 💡 更新：加入「店面收支」，用來處理定金、產品等不屬於老師個人業績的項目
+const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定", "店面收支"];
 
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
   "🌿 健康甲": { "微晶補甲(大拇指)": 200, "微晶補甲(其他小指)": 100, "指甲強韌處理(十指)": 300, "嵌甲(大拇指)": 100, "嵌甲(其他小指)": 50, "捲甲矯正(大拇指)": 300, "捲甲矯正(其他小指)": 200, "重建甲床(大拇指)": 500, "重建甲床(其他小指)": 300, "異型調整": 300, "矯正貼片": 1500 },
-  "🏥 特殊指甲護理": { "咬甲矯正": 1000, "肉包甲強化塑型(大拇指)": 200, "肉包甲強化塑型(其他小指)": 100, "矯正貼片": 1500, "特殊甲護理-(足部十趾)": 700, "特殊指甲/捲甲矯正(大拇指)": 500, "特殊指甲/捲甲矯正(其他小趾)": 300, "特殊甲/嵌甲(大拇指)": 100, "特殊甲/嵌甲(其他小指)": 100, "異型增生/菌絲養護(大拇指)": 500, "異型增生/菌絲養護(其他小指)": 300, "特殊甲護理(手部)": 500, "特殊甲/甲床重建(其他小指/單指計費)": 300, "特殊甲/甲床重建(大拇指/單指計費)": 500, "特殊甲足繭(嚴重)": 1300, "特殊甲足繭(一般)": 1100 },
+  "🏥 特殊指甲護理": { "咬甲矯正": 1000, "肉包甲強化塑型(大拇指)": 200, "肉包甲強化塑型(其他小指)": 100, "矯正貼片": 1500, "特殊甲護理-(足部十趾)": 700, "特殊指甲/捲甲矯正(大拇指)": 500, "特殊指甲/捲甲矯正(其他小趾)": 300, "特殊甲/嵌甲(大拇指)": 100, "特殊甲/嵌甲(其他小指)": 100, "異型增生/菌絲養護(大拇指)": 500, "異型增生/菌絲養護(其他小指)": 500, "特殊甲護理(手部)": 500, "特殊甲/甲床重建(其他小指/單指計費)": 300, "特殊甲/甲床重建(大拇指/單指計費)": 500, "特殊甲足繭(嚴重)": 1300, "特殊甲足繭(一般)": 1100 },
   "👁️ 美睫": { "自然裸妝": 1000, "濃密": 1300, "爆濃款": 1500, "加購(下睫毛)": 200, "純卸睫毛(本店)": 300, "純卸睫毛(他店)": 500, "卸睫續接卸睫費(本店)": 100, "卸睫續接卸睫費(他店)": 200, "自訂": "*", "服務費": "*", "睫毛管理(上睫毛)": 1199, "睫毛管理(下睫毛)": 699, "睫毛管理(增黑)": 300, "睫毛管理體驗價(上睫毛)": 999 },
   "👂 采耳": { "專業採耳": 999, "兒童耳道清潔": 699, "耳氤氳肩頸舒緩": 899, "身心減壓套餐": 1599, "服務費": "*" },
   "🧴 手足保養": { "淨化保養-手部淨化指甲保養續作": 300, "淨化保養-足部指甲": 500, "淨化保養-手部純保養": 400, "淨化保養-手工拋光": 100, "深層保養-短膜手足膜": 299, "深層保養-長膜手足膜": 399, "深層保養-手部深層保養": 1200, "深層保養-足部深層保養": 1800, "深層保養-足繭護理(嚴重)": 1000, "深層保養-足繭護理(一般)": 800, "深層保養-拋棄式足搓": 99 },
@@ -23,7 +25,6 @@ const menuData = {
   "💰 定金及加費": { "定金": 500, "定金(抵扣)": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
 };
 
-// 💡 輔助函式：透過細項名稱反查大項目類別
 function getCategoryByItemName(itemName) {
   for (const category in menuData) {
     if (menuData[category][itemName] !== undefined) {
@@ -86,7 +87,6 @@ function renderSubItems(category) {
   }
 }
 
-// 💡 更新：將數量的輸入框改為 1~8 的下拉式選單
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -101,13 +101,12 @@ function addToCart(itemName, itemPrice) {
     ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` 
     : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   
-  // 建立 1 到 8 的選項
+  // 💡 上限設定為 8
   let qtyOptions = "";
   for (let i = 1; i <= 8; i++) {
     qtyOptions += `<option value="${i}">${i}</option>`;
   }
   
-  // 組合成 select 標籤，並將 oninput 改為 onchange
   const qtyHTML = `<select class="item-qty" onchange="calculateTotal()" style="width: 100%; text-align: center; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background-color: #FCFAFA; font-size: 1em; cursor: pointer;">
                      ${qtyOptions}
                    </select>`;
@@ -125,6 +124,7 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
+// 💡 更新：混合結算金額預覽與總計
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
@@ -135,11 +135,54 @@ function calculateTotal() {
     
     if (sName.includes("抵扣")) { total -= Math.abs(subtotal); } else { total += subtotal; }
   });
-  document.getElementById("totalAmount").innerText = total; return total;
+  document.getElementById("totalAmount").innerText = total; 
+  updatePaymentPreview(); // 觸發預覽更新
+  return total;
+}
+
+function togglePayment2Amount() {
+  const p2 = document.getElementById("paymentMethod2").value;
+  const div = document.getElementById("payment2AmountDiv");
+  if (p2 === "") {
+    div.style.display = "none";
+    document.getElementById("paymentMethod2Amount").value = "";
+  } else {
+    div.style.display = "block";
+  }
+  updatePaymentPreview();
+}
+
+function updatePaymentPreview() {
+  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
+  const p1 = document.getElementById("paymentMethod").value;
+  const p2 = document.getElementById("paymentMethod2").value;
+  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
+  const previewObj = document.getElementById("paymentPreview");
+
+  if (p2 !== "" && p2Amt > 0) {
+    const p1Amt = total - p2Amt;
+    previewObj.innerText = `💡 混合結算：${p1} ($${p1Amt}) + ${p2} ($${p2Amt})`;
+  } else {
+    previewObj.innerText = "";
+  }
+}
+
+// 取得最終儲存入資料庫的收款字串
+function getFinalPaymentString() {
+  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
+  const p1 = document.getElementById("paymentMethod").value;
+  const p2 = document.getElementById("paymentMethod2").value;
+  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
+
+  if (p2 !== "" && p2Amt > 0) {
+    const p1Amt = total - p2Amt;
+    return `${p1}:${p1Amt}, ${p2}:${p2Amt}`;
+  }
+  return p1;
 }
 
 // ==========================================
-// 店務報表 (精準日曆演算法)
+// 店務報表 (精準日曆演算法與拆解邏輯)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
@@ -270,12 +313,24 @@ function processReportData(filterType) {
       const rowAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
       filteredTotal += rowAmount;
 
+      // 💡 更新：精確解析混合付款字串 (例如 "現金:500, 儲值金:1000")，將金額打入正確的現金流板塊
       if (!isVoid) {
-        let method = row["收款方式"] || "現金";
-        if (cashFlow[method] !== undefined) {
-          cashFlow[method] += rowAmount;
+        let methodStr = row["收款方式"] || "現金";
+        if (methodStr.includes(":")) {
+          let parts = methodStr.split(",");
+          parts.forEach(part => {
+            let [m, amtStr] = part.split(":");
+            let amt = parseInt(amtStr) || 0;
+            m = m.trim();
+            if (cashFlow[m] !== undefined) cashFlow[m] += amt;
+          });
         } else {
-          cashFlow["現金"] += rowAmount;
+          let method = methodStr.trim();
+          if (cashFlow[method] !== undefined) {
+            cashFlow[method] += rowAmount;
+          } else {
+            cashFlow["現金"] += rowAmount;
+          }
         }
       }
 
@@ -312,9 +367,22 @@ function processReportData(filterType) {
 
       let paymentBadge = "";
       if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
-        const pMethod = row["收款方式"] || "現金";
-        const pIcon = paymentIcons[pMethod] || "💳"; 
-        paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon} ${pMethod}</span>`;
+        const pMethodStr = row["收款方式"] || "現金";
+        
+        // 如果是混合付款，將各別的圖示都標上去，看起來更直觀
+        if (pMethodStr.includes(":")) {
+           let badgeHtml = "";
+           pMethodStr.split(",").forEach(part => {
+             let mName = part.split(":")[0].trim();
+             let mIcon = paymentIcons[mName] || "💳";
+             badgeHtml += `<span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px; margin-right:3px;">${mIcon} ${part.trim()}</span>`;
+           });
+           paymentBadge = `<br>` + badgeHtml;
+        } else {
+           const pMethod = pMethodStr.trim();
+           const pIcon = paymentIcons[pMethod] || "💳"; 
+           paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon} ${pMethod}</span>`;
+        }
       }
 
       const displayAmount = isVoid 
@@ -365,10 +433,13 @@ function processReportData(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
 
+  // 💡 更新：重新排版報告卡片，將「店面收支」獨立於常規老師之外
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
+  
+  // 先渲染一般操作老師
   technicians.forEach(t => {
-    if(techRevenue[t] !== 0 || t !== "無指定") {
+    if(t !== "店面收支" && (techRevenue[t] !== 0 || t !== "無指定")) {
       hasData = true;
       const card = document.createElement("div"); 
       card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
@@ -377,6 +448,19 @@ function processReportData(filterType) {
       summaryDiv.appendChild(card);
     }
   });
+  
+  // 獨立渲染「店面收支」，用醒目的綠色區隔，避免與個人業績混淆
+  if (techRevenue["店面收支"] !== 0) {
+      hasData = true;
+      const storeCard = document.createElement("div");
+      storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
+      storeCard.style.backgroundColor = "#EBF3EA"; 
+      storeCard.style.borderColor = "#B4D3B2";
+      storeCard.onclick = () => toggleTechFilter("店面收支");
+      storeCard.innerHTML = `<span style="color:#4B7946;">🏦 店面收支 (定金/純產品等)</span> <span class="amount" style="color:#4B7946;">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
+      summaryDiv.appendChild(storeCard);
+  }
+
   if(!hasData) summaryDiv.innerHTML = "<div class='report-card' style='justify-content:center; color:#999;'>該區間尚無業績資料</div>";
 }
 
@@ -522,7 +606,7 @@ function preparePrintReceipt() {
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
   document.getElementById("rcptTime").innerText = currentTimeString;
-  document.getElementById("rcptPayMethod").innerText = document.getElementById("paymentMethod").value;
+  document.getElementById("rcptPayMethod").innerText = getFinalPaymentString(); // 💡 套用混合付款字串
   document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
 
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
@@ -554,6 +638,13 @@ async function startCheckout() {
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
   
   if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
+
+  // 💡 驗證混合付款金額是否超過總計
+  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
+  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
+  if (document.getElementById("paymentMethod2").value !== "" && p2Amt > total) {
+    return alert("錯誤：方式 2 的金額不能超過總計金額！");
+  }
 
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
   try {
@@ -597,7 +688,7 @@ function submitToGAS() {
     member_name: document.getElementById("memberName").value.trim(), 
     phone_number: document.getElementById("memberPhone").value.trim(), 
     cashier: document.getElementById("cashier").value,
-    payment_method: document.getElementById("paymentMethod").value, 
+    payment_method: getFinalPaymentString(), // 💡 寫入混合付款字串
     payment_unit: document.getElementById("paymentUnit").value,
     total_amount: calculateTotal(), 
     cart_items: cartItems, 
