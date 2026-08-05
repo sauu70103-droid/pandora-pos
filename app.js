@@ -8,7 +8,6 @@ let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-// 💡 更新：加入「店面收支」，用來處理定金、產品等不屬於老師個人業績的項目
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定", "店面收支"];
 
 const menuData = {
@@ -27,9 +26,7 @@ const menuData = {
 
 function getCategoryByItemName(itemName) {
   for (const category in menuData) {
-    if (menuData[category][itemName] !== undefined) {
-      return category;
-    }
+    if (menuData[category][itemName] !== undefined) { return category; }
   }
   return "其他項目"; 
 }
@@ -38,6 +35,8 @@ window.onload = () => {
   initCheckoutTime();
   initCashierOptions(); 
   renderCategoryButtons(); 
+  // 💡 初始化載入時，自動建立第一組收款欄位
+  addPaymentRow();
 };
 
 function initCheckoutTime() {
@@ -101,7 +100,6 @@ function addToCart(itemName, itemPrice) {
     ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` 
     : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   
-  // 💡 上限設定為 8
   let qtyOptions = "";
   for (let i = 1; i <= 8; i++) {
     qtyOptions += `<option value="${i}">${i}</option>`;
@@ -124,7 +122,69 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
-// 💡 更新：混合結算金額預覽與總計
+// ==========================================
+// 💡 動態收款與金額比對核心邏輯
+// ==========================================
+let paymentRowCount = 0;
+const maxPaymentRows = 3; // 上限 3 種混合付款
+
+function addPaymentRow() {
+  if (paymentRowCount >= maxPaymentRows) return;
+  paymentRowCount++;
+  
+  const container = document.getElementById("paymentMethodsContainer");
+  const row = document.createElement("div");
+  row.className = "payment-row";
+  row.style.cssText = "display: flex; gap: 10px; margin-bottom: 10px; align-items: center;";
+  row.id = `paymentRow_${paymentRowCount}`;
+  
+  // 第一列不允許刪除，第二、三列可以刪除
+  const deleteBtnHTML = paymentRowCount > 1 
+    ? `<button type="button" onclick="removePaymentRow('${row.id}')" style="background: var(--danger-color); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight:bold;">刪除</button>` 
+    : `<div style="width: 62px;"></div>`; 
+  
+  row.innerHTML = `
+    <select class="pay-method-sel" style="flex: 2; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: white;">
+      <option value="現金">現金</option>
+      <option value="匯款">匯款</option>
+      <option value="刷卡">刷卡</option>
+      <option value="扣堂">扣堂</option>
+      <option value="儲值金">儲值金</option>
+    </select>
+    <input type="number" class="pay-amount-input" placeholder="輸入此方式金額" style="flex: 3; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" oninput="checkPaymentTotal()">
+    ${deleteBtnHTML}
+  `;
+  container.appendChild(row);
+  
+  if (paymentRowCount >= maxPaymentRows) {
+    document.getElementById("btnAddPayment").style.display = "none";
+  }
+  checkPaymentTotal();
+}
+
+function removePaymentRow(rowId) {
+  document.getElementById(rowId).remove();
+  paymentRowCount--;
+  document.getElementById("btnAddPayment").style.display = "block";
+  checkPaymentTotal();
+}
+
+function checkPaymentTotal() {
+  const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0;
+  let paymentSum = 0;
+  
+  document.querySelectorAll(".pay-amount-input").forEach(input => {
+    paymentSum += (parseInt(input.value) || 0);
+  });
+  
+  const feedback = document.getElementById("paymentFeedback");
+  if (paymentSum === cartTotal) {
+    feedback.innerHTML = `<span style="color: var(--success-color);">✅ 分配完美！目前分配: $${paymentSum} / 總計: $${cartTotal}</span>`;
+  } else {
+    feedback.innerHTML = `<span style="color: var(--danger-color);">❌ 金額不符！目前分配: $${paymentSum} / 總計: $${cartTotal}</span>`;
+  }
+}
+
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
@@ -136,49 +196,27 @@ function calculateTotal() {
     if (sName.includes("抵扣")) { total -= Math.abs(subtotal); } else { total += subtotal; }
   });
   document.getElementById("totalAmount").innerText = total; 
-  updatePaymentPreview(); // 觸發預覽更新
+  
+  // 💡 自動防呆：如果只有一種收款方式，而且總金額改變時，自動幫夥伴把金額填上去
+  if (paymentRowCount === 1) {
+    document.querySelector(".pay-amount-input").value = total;
+  }
+  
+  checkPaymentTotal(); 
   return total;
 }
 
-function togglePayment2Amount() {
-  const p2 = document.getElementById("paymentMethod2").value;
-  const div = document.getElementById("payment2AmountDiv");
-  if (p2 === "") {
-    div.style.display = "none";
-    document.getElementById("paymentMethod2Amount").value = "";
-  } else {
-    div.style.display = "block";
-  }
-  updatePaymentPreview();
-}
-
-function updatePaymentPreview() {
-  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
-  const p1 = document.getElementById("paymentMethod").value;
-  const p2 = document.getElementById("paymentMethod2").value;
-  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
-  const previewObj = document.getElementById("paymentPreview");
-
-  if (p2 !== "" && p2Amt > 0) {
-    const p1Amt = total - p2Amt;
-    previewObj.innerText = `💡 混合結算：${p1} ($${p1Amt}) + ${p2} ($${p2Amt})`;
-  } else {
-    previewObj.innerText = "";
-  }
-}
-
-// 取得最終儲存入資料庫的收款字串
+// 取得最終儲存入資料庫的混合收款字串 (例如 "現金:1000, 儲值金:500")
 function getFinalPaymentString() {
-  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
-  const p1 = document.getElementById("paymentMethod").value;
-  const p2 = document.getElementById("paymentMethod2").value;
-  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
-
-  if (p2 !== "" && p2Amt > 0) {
-    const p1Amt = total - p2Amt;
-    return `${p1}:${p1Amt}, ${p2}:${p2Amt}`;
-  }
-  return p1;
+  let paymentParts = [];
+  document.querySelectorAll(".payment-row").forEach(row => {
+     const method = row.querySelector(".pay-method-sel").value;
+     const amount = parseInt(row.querySelector(".pay-amount-input").value) || 0;
+     if (amount !== 0) { // 允許 0 或負數(定金抵扣)，只要有填數字就算數
+       paymentParts.push(`${method}:${amount}`);
+     }
+  });
+  return paymentParts.join(", ");
 }
 
 // ==========================================
@@ -193,15 +231,12 @@ function getWeekBoundaries(baseDate) {
   const dateObj = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
   const day = dateObj.getDay();
   const diffToMonday = day === 0 ? 6 : day - 1; 
-  
   const startOfWeek = new Date(dateObj);
   startOfWeek.setDate(dateObj.getDate() - diffToMonday);
   startOfWeek.setHours(0, 0, 0, 0); 
-  
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999); 
-  
   return { startOfWeek, endOfWeek };
 }
 
@@ -222,14 +257,11 @@ function loadReport(filterType) {
   if (filterType !== 'custom') {
     document.getElementById('filter-' + filterType).classList.add('active');
     document.getElementById('customDateFilter').value = ""; 
-    
     if (filterType === 'week') {
        const bounds = getWeekBoundaries(now);
        const startM = String(bounds.startOfWeek.getMonth() + 1).padStart(2, '0');
        const endM = String(bounds.endOfWeek.getMonth() + 1).padStart(2, '0');
-       if (startM !== endM) {
-           reqMonths = [startM, endM]; 
-       }
+       if (startM !== endM) { reqMonths = [startM, endM]; }
     }
   } else {
     const customDate = document.getElementById("customDateFilter").value;
@@ -238,7 +270,6 @@ function loadReport(filterType) {
   }
   
   const reqMonthStr = reqMonths.join(','); 
-  
   const summaryDiv = document.getElementById("reportSummary");
   const detailedBody = document.getElementById("detailedReportBody");
   const loadingDiv = document.getElementById("loadingReport");
@@ -313,7 +344,6 @@ function processReportData(filterType) {
       const rowAmount = isVoid ? 0 : (parseInt(row["總金額"]) || 0);
       filteredTotal += rowAmount;
 
-      // 💡 更新：精確解析混合付款字串 (例如 "現金:500, 儲值金:1000")，將金額打入正確的現金流板塊
       if (!isVoid) {
         let methodStr = row["收款方式"] || "現金";
         if (methodStr.includes(":")) {
@@ -368,8 +398,6 @@ function processReportData(filterType) {
       let paymentBadge = "";
       if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
         const pMethodStr = row["收款方式"] || "現金";
-        
-        // 如果是混合付款，將各別的圖示都標上去，看起來更直觀
         if (pMethodStr.includes(":")) {
            let badgeHtml = "";
            pMethodStr.split(",").forEach(part => {
@@ -433,11 +461,9 @@ function processReportData(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
 
-  // 💡 更新：重新排版報告卡片，將「店面收支」獨立於常規老師之外
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   
-  // 先渲染一般操作老師
   technicians.forEach(t => {
     if(t !== "店面收支" && (techRevenue[t] !== 0 || t !== "無指定")) {
       hasData = true;
@@ -449,7 +475,6 @@ function processReportData(filterType) {
     }
   });
   
-  // 獨立渲染「店面收支」，用醒目的綠色區隔，避免與個人業績混淆
   if (techRevenue["店面收支"] !== 0) {
       hasData = true;
       const storeCard = document.createElement("div");
@@ -606,7 +631,7 @@ function preparePrintReceipt() {
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
   document.getElementById("rcptTime").innerText = currentTimeString;
-  document.getElementById("rcptPayMethod").innerText = getFinalPaymentString(); // 💡 套用混合付款字串
+  document.getElementById("rcptPayMethod").innerText = getFinalPaymentString(); 
   document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
 
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
@@ -639,11 +664,25 @@ async function startCheckout() {
   
   if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
 
-  // 💡 驗證混合付款金額是否超過總計
-  const total = parseInt(document.getElementById("totalAmount").innerText) || 0;
-  const p2Amt = parseInt(document.getElementById("paymentMethod2Amount").value) || 0;
-  if (document.getElementById("paymentMethod2").value !== "" && p2Amt > total) {
-    return alert("錯誤：方式 2 的金額不能超過總計金額！");
+  // 💡 絕對防呆機制：收款總額必須等於消費總計
+  const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0;
+  let paymentSum = 0;
+  let hasEmptyPayment = false;
+  
+  document.querySelectorAll(".pay-amount-input").forEach(input => {
+    const amt = parseInt(input.value);
+    if (isNaN(amt)) {
+      hasEmptyPayment = true;
+    } else {
+      paymentSum += amt;
+    }
+  });
+  
+  if (hasEmptyPayment) {
+    return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
+  }
+  if (paymentSum !== cartTotal) {
+    return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
   }
 
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
@@ -688,7 +727,7 @@ function submitToGAS() {
     member_name: document.getElementById("memberName").value.trim(), 
     phone_number: document.getElementById("memberPhone").value.trim(), 
     cashier: document.getElementById("cashier").value,
-    payment_method: getFinalPaymentString(), // 💡 寫入混合付款字串
+    payment_method: getFinalPaymentString(), 
     payment_unit: document.getElementById("paymentUnit").value,
     total_amount: calculateTotal(), 
     cart_items: cartItems, 
