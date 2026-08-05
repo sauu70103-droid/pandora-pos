@@ -129,33 +129,6 @@
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
-        
-        <!-- 💡 更新：混合付款機制 -->
-        <div>
-          <label>收款方式 1</label>
-          <select id="paymentMethod" onchange="updatePaymentPreview()">
-            <option value="現金">現金</option>
-            <option value="匯款">匯款</option>
-            <option value="刷卡">刷卡</option>
-            <option value="扣堂">扣堂</option>
-            <option value="儲值金">儲值金</option>
-          </select>
-        </div>
-        <div>
-          <label>收款方式 2 (選填混合付款)</label>
-          <select id="paymentMethod2" onchange="togglePayment2Amount()">
-            <option value="">無</option>
-            <option value="現金">現金</option>
-            <option value="匯款">匯款</option>
-            <option value="刷卡">刷卡</option>
-            <option value="扣堂">扣堂</option>
-            <option value="儲值金">儲值金</option>
-          </select>
-        </div>
-        <div id="payment2AmountDiv" style="display:none;">
-          <label>方式 2 金額 (NT$)</label>
-          <input type="number" id="paymentMethod2Amount" placeholder="輸入金額" oninput="updatePaymentPreview()">
-        </div>
         <div>
           <label>收款單位</label>
           <select id="paymentUnit">
@@ -164,9 +137,6 @@
           </select>
         </div>
       </div>
-      
-      <!-- 混合付款預覽提示 -->
-      <div style="text-align: right; color: var(--danger-color); font-weight: bold; font-size: 0.95em; margin-top: -10px; margin-bottom: 15px;" id="paymentPreview"></div>
 
       <h2>選擇服務項目</h2>
       <div class="category-grid" id="categoryGrid"></div>
@@ -191,6 +161,21 @@
       </table>
 
       <div class="total-section">總計金額：NT$ <span id="totalAmount">0</span></div>
+
+      <!-- 💡 新增：金流核對與混合付款專區 -->
+      <div style="background: #FAF5F0; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border-color);">
+        <h3 style="margin-top: 0; text-align: left; font-size: 1.1em; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">💰 收款方式與金額分配</h3>
+        <p style="font-size: 0.9em; color: #666; margin-top: 0;">請確認收款方式與金額，分配加總必須等於消費總計才能結帳。</p>
+        
+        <div id="paymentMethodsContainer">
+          <!-- 這裡會由 JS 動態產生收款列 -->
+        </div>
+        
+        <button id="btnAddPayment" type="button" onclick="addPaymentRow()" style="background: white; border: 1px dashed var(--primary-color); color: var(--primary-color); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s;">+ 新增其他收款方式 (最多 3 種)</button>
+        
+        <!-- 實時金額比對提示區 -->
+        <div id="paymentFeedback" style="font-weight: bold; margin-top: 15px; text-align: right;"></div>
+      </div>
 
       <div class="form-group" style="margin-bottom: 20px;">
         <div style="flex: 100%;">
