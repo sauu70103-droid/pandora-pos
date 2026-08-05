@@ -8,12 +8,14 @@ let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-const technicians = ["李家蓁", "呂函優", "呂佩穎", "無指定", "店面收支"];
+// 💡 調整 1：正式移除「無指定」，保留操作老師與「店面收支」
+const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
   "🌿 健康甲": { "微晶補甲(大拇指)": 200, "微晶補甲(其他小指)": 100, "指甲強韌處理(十指)": 300, "嵌甲(大拇指)": 100, "嵌甲(其他小指)": 50, "捲甲矯正(大拇指)": 300, "捲甲矯正(其他小指)": 200, "重建甲床(大拇指)": 500, "重建甲床(其他小指)": 300, "異型調整": 300, "矯正貼片": 1500 },
+  // 💡 調整 2：這裡已經為你將「異型增生/菌絲養護(其他小指)」預設為 300 元
   "🏥 特殊指甲護理": { "咬甲矯正": 1000, "肉包甲強化塑型(大拇指)": 200, "肉包甲強化塑型(其他小指)": 100, "矯正貼片": 1500, "特殊甲護理-(足部十趾)": 700, "特殊指甲/捲甲矯正(大拇指)": 500, "特殊指甲/捲甲矯正(其他小趾)": 300, "特殊甲/嵌甲(大拇指)": 100, "特殊甲/嵌甲(其他小指)": 100, "異型增生/菌絲養護(大拇指)": 500, "異型增生/菌絲養護(其他小指)": 300, "特殊甲護理(手部)": 500, "特殊甲/甲床重建(其他小指/單指計費)": 300, "特殊甲/甲床重建(大拇指/單指計費)": 500, "特殊甲足繭(嚴重)": 1300, "特殊甲足繭(一般)": 1100 },
   "👁️ 美睫": { "自然裸妝": 1000, "濃密": 1300, "爆濃款": 1500, "加購(下睫毛)": 200, "純卸睫毛(本店)": 300, "純卸睫毛(他店)": 500, "卸睫續接卸睫費(本店)": 100, "卸睫續接卸睫費(他店)": 200, "自訂": "*", "服務費": "*", "睫毛管理(上睫毛)": 1199, "睫毛管理(下睫毛)": 699, "睫毛管理(增黑)": 300, "睫毛管理體驗價(上睫毛)": 999 },
   "👂 采耳": { "專業採耳": 999, "兒童耳道清潔": 699, "耳氤氳肩頸舒緩": 899, "身心減壓套餐": 1599, "服務費": "*" },
@@ -35,7 +37,6 @@ window.onload = () => {
   initCheckoutTime();
   initCashierOptions(); 
   renderCategoryButtons(); 
-  // 💡 初始化載入時，自動建立第一組收款欄位
   addPaymentRow();
 };
 
@@ -123,10 +124,10 @@ function addToCart(itemName, itemPrice) {
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
 // ==========================================
-// 💡 動態收款與金額比對核心邏輯
+// 動態收款與金額比對核心邏輯
 // ==========================================
 let paymentRowCount = 0;
-const maxPaymentRows = 3; // 上限 3 種混合付款
+const maxPaymentRows = 3; 
 
 function addPaymentRow() {
   if (paymentRowCount >= maxPaymentRows) return;
@@ -138,7 +139,6 @@ function addPaymentRow() {
   row.style.cssText = "display: flex; gap: 10px; margin-bottom: 10px; align-items: center;";
   row.id = `paymentRow_${paymentRowCount}`;
   
-  // 第一列不允許刪除，第二、三列可以刪除
   const deleteBtnHTML = paymentRowCount > 1 
     ? `<button type="button" onclick="removePaymentRow('${row.id}')" style="background: var(--danger-color); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight:bold;">刪除</button>` 
     : `<div style="width: 62px;"></div>`; 
@@ -197,7 +197,6 @@ function calculateTotal() {
   });
   document.getElementById("totalAmount").innerText = total; 
   
-  // 💡 自動防呆：如果只有一種收款方式，而且總金額改變時，自動幫夥伴把金額填上去
   if (paymentRowCount === 1) {
     document.querySelector(".pay-amount-input").value = total;
   }
@@ -206,13 +205,12 @@ function calculateTotal() {
   return total;
 }
 
-// 取得最終儲存入資料庫的混合收款字串 (例如 "現金:1000, 儲值金:500")
 function getFinalPaymentString() {
   let paymentParts = [];
   document.querySelectorAll(".payment-row").forEach(row => {
      const method = row.querySelector(".pay-method-sel").value;
      const amount = parseInt(row.querySelector(".pay-amount-input").value) || 0;
-     if (amount !== 0) { // 允許 0 或負數(定金抵扣)，只要有填數字就算數
+     if (amount !== 0) { 
        paymentParts.push(`${method}:${amount}`);
      }
   });
@@ -461,11 +459,13 @@ function processReportData(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
 
+  // 💡 調整 3：重新算繪報表卡片
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; let hasData = false;
   
+  // 先渲染一般操作老師，無指定已被移除，所以不須判斷
   technicians.forEach(t => {
-    if(t !== "店面收支" && (techRevenue[t] !== 0 || t !== "無指定")) {
+    if(t !== "店面收支" && techRevenue[t] !== 0) {
       hasData = true;
       const card = document.createElement("div"); 
       card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
@@ -475,14 +475,15 @@ function processReportData(filterType) {
     }
   });
   
+  // 💡 將店面收支獨立放在最後面，並使用與一般老師完全相同的卡片樣式！
+  // 即使它是負數（例如定金抵扣 > 新收定金），也會正常產生卡片並帶有負號。
   if (techRevenue["店面收支"] !== 0) {
       hasData = true;
       const storeCard = document.createElement("div");
+      // 這裡直接套用跟老師一樣的 css class，不再給予特殊綠色
       storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
-      storeCard.style.backgroundColor = "#EBF3EA"; 
-      storeCard.style.borderColor = "#B4D3B2";
       storeCard.onclick = () => toggleTechFilter("店面收支");
-      storeCard.innerHTML = `<span style="color:#4B7946;">🏦 店面收支 (定金/純產品等)</span> <span class="amount" style="color:#4B7946;">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
+      storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
       summaryDiv.appendChild(storeCard);
   }
 
@@ -592,7 +593,7 @@ function executeVoid(orderId, checkoutTime) {
   .then(res => res.json())
   .then(result => {
     alert("作廢成功！系統將自動刷新帳務...");
-    allReportData = []; // 清空快取
+    allReportData = []; 
     loadedMonthStr = "";
     fetchVoidList(); 
     loadReport(currentFilter); 
@@ -664,7 +665,6 @@ async function startCheckout() {
   
   if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
 
-  // 💡 絕對防呆機制：收款總額必須等於消費總計
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0;
   let paymentSum = 0;
   let hasEmptyPayment = false;
