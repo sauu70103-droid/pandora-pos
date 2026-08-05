@@ -129,15 +129,32 @@
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
+        
+        <!-- 💡 更新：混合付款機制 -->
         <div>
-          <label>收款方式</label>
-          <select id="paymentMethod">
+          <label>收款方式 1</label>
+          <select id="paymentMethod" onchange="updatePaymentPreview()">
             <option value="現金">現金</option>
             <option value="匯款">匯款</option>
             <option value="刷卡">刷卡</option>
             <option value="扣堂">扣堂</option>
             <option value="儲值金">儲值金</option>
           </select>
+        </div>
+        <div>
+          <label>收款方式 2 (選填混合付款)</label>
+          <select id="paymentMethod2" onchange="togglePayment2Amount()">
+            <option value="">無</option>
+            <option value="現金">現金</option>
+            <option value="匯款">匯款</option>
+            <option value="刷卡">刷卡</option>
+            <option value="扣堂">扣堂</option>
+            <option value="儲值金">儲值金</option>
+          </select>
+        </div>
+        <div id="payment2AmountDiv" style="display:none;">
+          <label>方式 2 金額 (NT$)</label>
+          <input type="number" id="paymentMethod2Amount" placeholder="輸入金額" oninput="updatePaymentPreview()">
         </div>
         <div>
           <label>收款單位</label>
@@ -147,6 +164,9 @@
           </select>
         </div>
       </div>
+      
+      <!-- 混合付款預覽提示 -->
+      <div style="text-align: right; color: var(--danger-color); font-weight: bold; font-size: 0.95em; margin-top: -10px; margin-bottom: 15px;" id="paymentPreview"></div>
 
       <h2>選擇服務項目</h2>
       <div class="category-grid" id="categoryGrid"></div>
@@ -190,7 +210,7 @@
     </div>
 
     <div id="cashFlowBox" class="cashflow-box">
-      <h4 style="margin: 0 0 5px 0; text-align: center; color: var(--text-dark);">💵 當日現金流結算 (依收款方式統計)</h4>
+      <h4 style="margin: 0 0 5px 0; text-align: center; color: var(--text-dark);">💵 當日現金流結算 (依收款方式統整拆解)</h4>
       <div class="cashflow-grid" id="cashFlowGrid"></div>
     </div>
 
@@ -204,7 +224,7 @@
     
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
     
-    <h4 style="color:#888; text-align:center; margin-bottom:5px;">💡 點擊老師卡片即可篩選該老師專屬明細</h4>
+    <h4 style="color:#888; text-align:center; margin-bottom:5px;">💡 點擊老師卡片即可篩選該專屬明細</h4>
     <div class="report-summary" id="reportSummary"></div>
 
     <div id="detailedReportContainer" style="margin-bottom: 20px;">
@@ -241,6 +261,7 @@
 
 </div>
 
+<!-- 簽名與作廢視窗 -->
 <div id="signatureModal" class="modal">
   <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
