@@ -86,7 +86,7 @@ function renderSubItems(category) {
   }
 }
 
-// 💡 更新：將數量的輸入框改為 1~20 的下拉式選單
+// 💡 更新：將數量的輸入框改為 1~8 的下拉式選單
 function addToCart(itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -101,9 +101,9 @@ function addToCart(itemName, itemPrice) {
     ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` 
     : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   
-  // 建立 1 到 20 的選項
+  // 建立 1 到 8 的選項
   let qtyOptions = "";
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= 8; i++) {
     qtyOptions += `<option value="${i}">${i}</option>`;
   }
   
