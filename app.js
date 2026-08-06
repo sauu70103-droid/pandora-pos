@@ -237,6 +237,7 @@ function getWeekBoundaries(baseDate) {
 }
 
 function toggleTechFilter(techName) {
+  if (techName === "全店金流") return; // 💡 總結算卡片不需要篩選
   if (currentTechFilter === techName) currentTechFilter = null; 
   else currentTechFilter = techName; 
   processReportData(currentFilter);
@@ -429,9 +430,17 @@ function processReportData(filterType) {
   const cashFlowGrid = document.getElementById("cashFlowGrid");
   const archiveSection = document.getElementById("archiveSection");
 
-  if (filterType === 'today' || filterType === 'custom') {
+  // 💡 調整：讓本週、本月報表也開放看最上方的金流比例細項（但隱藏歸檔按鈕）
+  if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
     cashFlowBox.style.display = "block";
-    archiveSection.style.display = "block";
+    archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
+    
+    let boxTitle = filterType === 'today' ? "💵 當日現金流結算" : 
+                   filterType === 'week' ? "💵 本週現金流結算" : 
+                   filterType === 'month' ? "💵 本月現金流結算" : "💵 該日現金流結算";
+                   
+    cashFlowBox.querySelector("h4").innerText = `${boxTitle} (依收款方式統整拆解)`;
+    
     cashFlowGrid.innerHTML = `
       <div class="cashflow-item">💵 現金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["現金"].toLocaleString()}</span></div>
       <div class="cashflow-item">💳 刷卡<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["刷卡"].toLocaleString()}</span></div>
@@ -457,11 +466,10 @@ function processReportData(filterType) {
   const detailedBody = document.getElementById("detailedReportBody");
   detailedBody.innerHTML = detailedHTML !== "" ? detailedHTML : `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">該區間/該老師尚無結帳明細</td></tr>`;
 
-  // 💡 調整：移除「金額是否為 0」的檢查，讓所有名單內的老師與店面收支都會固定顯示！
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
   
-  // 渲染所有一般操作老師
+  // 1. 渲染所有一般操作老師 (業績區塊)
   technicians.forEach(t => {
     if(t !== "店面收支") {
       const card = document.createElement("div"); 
@@ -472,12 +480,24 @@ function processReportData(filterType) {
     }
   });
   
-  // 獨立渲染「店面收支」，固定排在最下方
+  // 2. 渲染「店面收支」
   const storeCard = document.createElement("div");
   storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
   storeCard.onclick = () => toggleTechFilter("店面收支");
   storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
   summaryDiv.appendChild(storeCard);
+  
+  // 💡 3. 新增欄位：「全店總結算金流」 (將所有收支正負相加後的實收總金流，放在最底下)
+  const totalCashFlowCard = document.createElement("div");
+  totalCashFlowCard.className = "report-card";
+  totalCashFlowCard.style.backgroundColor = "#FDF5E6"; // 醒目的淺橘黃色
+  totalCashFlowCard.style.borderColor = "#F5DEB3";
+  totalCashFlowCard.style.cursor = "default"; // 此為總結算展示，無須篩選點擊
+  totalCashFlowCard.innerHTML = `
+    <span style="color: #D2691E; font-weight: 900;">💰 總結算金流 (全店實際總收支)</span> 
+    <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${filteredTotal.toLocaleString()}</span>
+  `;
+  summaryDiv.appendChild(totalCashFlowCard);
 }
 
 function executeArchive() {
