@@ -39,12 +39,11 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心修復 1：安全初始化本地時間，杜絕時差偏移
+// 💡 核心修復 1：回歸最相容於安卓系統的時間抓取方式，確保精準帶入 24 小時制當下時間
 function initCheckoutTime() {
   const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
-  const localISO = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  document.getElementById('checkoutDateTime').value = localISO;
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
 }
 
 function switchTab(tabName) {
@@ -125,6 +124,9 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
+// ==========================================
+// 動態收款與金額比對核心邏輯
+// ==========================================
 let paymentRowCount = 0;
 const maxPaymentRows = 3; 
 
@@ -202,6 +204,9 @@ function getFinalPaymentString() {
   return paymentParts.join(", ");
 }
 
+// ==========================================
+// 店務報表 (精準日曆與指定月份)
+// ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
@@ -633,9 +638,9 @@ function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canv
 canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
-// 💡 核心修復 2：直接解析字串，杜絕 Safari 時間偏移 Bug
+// 💡 核心修復 2：確保留存至資料庫的字串完全與畫面上看到的時間吻合
 function preparePrintReceipt() {
-  const selectedTime = document.getElementById("checkoutDateTime").value; // "YYYY-MM-DDTHH:mm"
+  const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
   
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
