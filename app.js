@@ -39,11 +39,38 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 11 AM 穩定版：時間初始化回歸
+// 💡 核心修復 1：無敵時間防護網 - 強制取得「亞洲/台北」的 24 小時制時間
 function initCheckoutTime() {
   const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
+  
+  const options = { 
+    timeZone: 'Asia/Taipei', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false // 強制 24 小時制
+  };
+  
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+  const parts = formatter.formatToParts(now);
+  
+  let year, month, day, hour, minute;
+  parts.forEach(p => {
+    if(p.type === 'year') year = p.value;
+    if(p.type === 'month') month = p.value;
+    if(p.type === 'day') day = p.value;
+    if(p.type === 'hour') hour = p.value;
+    if(p.type === 'minute') minute = p.value;
+  });
+  
+  // 有些舊瀏覽器 24 小時制會回傳 '24'，統一校正為 '00'
+  if (hour === '24') hour = '00';
+  
+  // 拼湊回完美的 YYYY-MM-DDTHH:mm 格式給前端欄位
+  const localISO = `${year}-${month}-${day}T${hour}:${minute}`;
+  document.getElementById('checkoutDateTime').value = localISO;
 }
 
 function switchTab(tabName) {
@@ -124,6 +151,9 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
+// ==========================================
+// 動態收款與金額比對核心邏輯
+// ==========================================
 let paymentRowCount = 0;
 const maxPaymentRows = 3; 
 
@@ -201,6 +231,9 @@ function getFinalPaymentString() {
   return paymentParts.join(", ");
 }
 
+// ==========================================
+// 店務報表 (精準日曆與指定月份)
+// ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
@@ -625,13 +658,33 @@ function executeVoid(orderId, checkoutTime) {
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
-// 💡 11 AM 穩定版：簽名板無干擾純淨版本
+// 💡 核心修復 2：簽名板邏輯，加入動態比例校正，確保不管螢幕多大都能精準觸控
 const canvas = document.getElementById("sigCanvas"); 
 const ctx = canvas.getContext("2d"); 
 let isDrawing = false;
 
+function getCoordinates(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  
+  let clientX = e.clientX;
+  let clientY = e.clientY;
+  
+  if (e.touches && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  }
+  
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
 function startDrawing(e) { 
   isDrawing = true; 
+  ctx.beginPath();
   draw(e); 
 }
 
@@ -644,19 +697,17 @@ function draw(e) {
   if (!isDrawing) return; 
   e.preventDefault(); 
   
-  const rect = canvas.getBoundingClientRect(); 
-  const clientX = e.clientX || (e.touches && e.touches[0].clientX); 
-  const clientY = e.clientY || (e.touches && e.touches[0].clientY); 
+  const coords = getCoordinates(e);
   
   ctx.lineWidth = 3; 
   ctx.lineCap = "round"; 
   ctx.strokeStyle = "#000"; 
   
-  ctx.lineTo(clientX - rect.left, clientY - rect.top); 
+  ctx.lineTo(coords.x, coords.y); 
   ctx.stroke(); 
   
   ctx.beginPath(); 
-  ctx.moveTo(clientX - rect.left, clientY - rect.top); 
+  ctx.moveTo(coords.x, coords.y); 
 }
 
 canvas.addEventListener("mousedown", startDrawing); 
@@ -670,10 +721,9 @@ function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
-// 💡 11 AM 穩定版加上「字串直出防呆」：杜絕瀏覽器任何重算或時區偏移！
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
-  // 直接將 T 取代為空格，不使用 new Date() 讓瀏覽器重新解析
+  // 直接將 T 取代為空格，完全避開瀏覽器重新計算時差的風險
   currentTimeString = selectedTime.replace('T', ' '); 
   
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
