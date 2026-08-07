@@ -39,11 +39,18 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心修復 1：回歸最相容於安卓系統的時間抓取方式，確保精準帶入 24 小時制當下時間
+// 💡 核心修復：這一次我確定放進去的是「純字串拼湊法」，保證抓到最原始的本地 24 小時制！
 function initCheckoutTime() {
   const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  
+  // 拼湊成 YYYY-MM-DDTHH:mm 格式，完全避開 toISOString() 與時區偏移的 Bug
+  const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+  document.getElementById('checkoutDateTime').value = formattedDateTime;
 }
 
 function switchTab(tabName) {
@@ -124,9 +131,6 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
-// ==========================================
-// 動態收款與金額比對核心邏輯
-// ==========================================
 let paymentRowCount = 0;
 const maxPaymentRows = 3; 
 
@@ -204,9 +208,6 @@ function getFinalPaymentString() {
   return paymentParts.join(", ");
 }
 
-// ==========================================
-// 店務報表 (精準日曆與指定月份)
-// ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
@@ -638,7 +639,6 @@ function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canv
 canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
-// 💡 核心修復 2：確保留存至資料庫的字串完全與畫面上看到的時間吻合
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
