@@ -21,7 +21,7 @@
     .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); position: relative; }
     h1, h2, h3 { text-align: center; color: var(--text-dark); }
     
-    .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; }
+    .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; flex-wrap: wrap; }
     .nav-tabs button { background: #EFE8DF; color: var(--text-dark); border: none; padding: 12px 25px; font-size: 1.1em; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
     .nav-tabs button.active { background: var(--primary-color); color: white; }
     .tab-content { display: none; }
@@ -63,7 +63,7 @@
     .report-controls { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; align-items: center; flex-wrap: wrap;}
     .report-controls button { background: white; border: 2px solid var(--primary-color); color: var(--text-dark); padding: 8px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s;}
     .report-controls button.active { background: var(--primary-color); color: white; }
-    .report-controls input[type="date"] { width: auto; padding: 7px 15px; border: 2px solid var(--border-color); border-radius: 20px; background: white; font-weight: bold; cursor: pointer;}
+    .report-controls input[type="date"], .report-controls input[type="month"] { width: auto; padding: 7px 15px; border: 2px solid var(--border-color); border-radius: 20px; background: white; font-weight: bold; cursor: pointer;}
     
     .report-summary { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
     .report-card { background: #FBF9F6; border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 1.2em; font-weight: bold; cursor: pointer; transition: 0.2s; }
@@ -89,7 +89,7 @@
     .btn-archive { background: var(--success-color); color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: 0.2s; }
     .btn-archive:hover { background: #739470; }
 
-    #loadingReport { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
+    #loadingReport, #loadingCommission { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
     .detailed-table { width: 100%; font-size: 0.95em; border-collapse: collapse; }
     .detailed-table th { background-color: #E2D6C8; padding: 10px; border: 1px solid var(--border-color); }
@@ -119,6 +119,7 @@
   <div class="nav-tabs">
     <button id="tab-checkout" class="active" onclick="switchTab('checkout')">結帳作業</button>
     <button id="tab-report" onclick="switchTab('report')">店務與對帳報表</button>
+    <button id="tab-commission" onclick="switchTab('commission')">📊 分潤與薪水報表</button>
   </div>
 
   <div id="content-checkout" class="tab-content active">
@@ -162,18 +163,12 @@
 
       <div class="total-section">總計金額：NT$ <span id="totalAmount">0</span></div>
 
-      <!-- 💡 新增：金流核對與混合付款專區 -->
       <div style="background: #FAF5F0; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border-color);">
         <h3 style="margin-top: 0; text-align: left; font-size: 1.1em; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">💰 收款方式與金額分配</h3>
         <p style="font-size: 0.9em; color: #666; margin-top: 0;">請確認收款方式與金額，分配加總必須等於消費總計才能結帳。</p>
         
-        <div id="paymentMethodsContainer">
-          <!-- 這裡會由 JS 動態產生收款列 -->
-        </div>
-        
+        <div id="paymentMethodsContainer"></div>
         <button id="btnAddPayment" type="button" onclick="addPaymentRow()" style="background: white; border: 1px dashed var(--primary-color); color: var(--primary-color); padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s;">+ 新增其他收款方式 (最多 3 種)</button>
-        
-        <!-- 實時金額比對提示區 -->
         <div id="paymentFeedback" style="font-weight: bold; margin-top: 15px; text-align: right;"></div>
       </div>
 
@@ -184,7 +179,6 @@
         </div>
       </div>
     </div>
-    
     <button class="btn-submit" id="btnGenerate" onclick="startCheckout()">產生確認單並簽名</button>
   </div>
 
@@ -203,12 +197,15 @@
       <button id="filter-today" class="active" onclick="loadReport('today')">今日業績</button>
       <button id="filter-week" onclick="loadReport('week')">本週業績</button>
       <button id="filter-month" onclick="loadReport('month')">本月業績</button>
-      <span style="font-weight:bold; color:var(--text-dark); margin-left:10px;">特定日期：</span>
+      
+      <span style="font-weight:bold; color:var(--text-dark); margin-left:10px;">指定日期：</span>
       <input type="date" id="customDateFilter" onchange="loadReport('custom')">
+      
+      <span style="font-weight:bold; color:var(--text-dark); margin-left:10px;">指定月份：</span>
+      <input type="month" id="customMonthFilter" onchange="loadReport('customMonth')">
     </div>
     
     <div id="loadingReport">正在向雲端撈取最新資料，請稍候...</div>
-    
     <h4 style="color:#888; text-align:center; margin-bottom:5px;">💡 點擊老師卡片即可篩選該專屬明細</h4>
     <div class="report-summary" id="reportSummary"></div>
 
@@ -231,17 +228,26 @@
 
     <div class="archive-section" id="archiveSection" style="display:none;">
       <h3>📁 業績審核與歸檔</h3>
-      <p style="font-size:0.9em; color:#555; margin-top:0;">確認今日／指定日期之對帳與現金流無誤後，即可點擊下方按鈕將業績正式歸檔寫入分潤資料表。</p>
-      <button class="btn-archive" onclick="executeArchive()">📁 確認無誤，執行業績歸檔</button>
+      <p style="font-size:0.9em; color:#555; margin-top:0;">確認今日／指定日期之對帳與現金流無誤後，即可點擊下方按鈕將業績正式拆解並歸檔寫入分潤資料表。</p>
+      <button class="btn-archive" onclick="executeArchive()">📁 確認無誤，執行分潤拆解歸檔</button>
     </div>
 
     <div class="admin-tools">
       <h3>⚠️ 單據作廢與調整</h3>
-      <p style="font-size:0.9em; color:#888; margin-top:0;">(已作廢的單據金額將歸零，並在報表中標示紅色註記)</p>
       <div class="admin-btns" style="justify-content: center; display: flex;">
         <button onclick="openVoidModal()">📅 開啟單據查詢與作廢面板</button>
       </div>
     </div>
+  </div>
+
+  <!-- 💡 新增：分潤與薪水計算頁籤 -->
+  <div id="content-commission" class="tab-content">
+    <div class="report-controls" style="background:#FAF5F0; padding: 20px; border-radius: 8px;">
+      <span style="font-size: 1.2em; font-weight:bold; color:var(--text-dark);">📅 選擇查看薪水月份：</span>
+      <input type="month" id="commissionMonthSelector" style="font-size: 1.1em;" onchange="loadCommissions()">
+    </div>
+    <div id="loadingCommission">正在向雲端撈取已歸檔的分潤資料，請稍候...</div>
+    <div id="commissionSummary" style="margin-top: 20px;"></div>
   </div>
 
 </div>
