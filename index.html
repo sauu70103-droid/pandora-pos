@@ -126,14 +126,8 @@
     <div>
       <h1>數位 POS 結帳單</h1>
       <div class="form-group">
-        <!-- 💡 核心修復：將單一的 datetime-local 拆分為 date 和 time 兩個輸入框 -->
-        <div>
-          <label>結帳時間 (可修改補登)</label>
-          <div style="display: flex; gap: 5px;">
-            <input type="date" id="checkoutDate" required style="flex: 5;">
-            <input type="time" id="checkoutTime" required style="flex: 4;">
-          </div>
-        </div>
+        <!-- 💡 完美回歸：改回單一 datetime-local，找回你最習慣的滾動版面 -->
+        <div><label>結帳時間 (可修改補登)</label><input type="datetime-local" id="checkoutDateTime" required></div>
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
         <div><label>開單櫃台</label><select id="cashier"></select></div>
@@ -258,7 +252,6 @@
 
 </div>
 
-<!-- 簽名與作廢視窗 -->
 <div id="signatureModal" class="modal">
   <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
