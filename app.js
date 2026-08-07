@@ -39,19 +39,22 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心優化：將系統本地時間，分別寫入獨立的日期與時間欄位
+// 💡 核心修復：使用最穩定的時區校正與字串切割法，確保分開的日期與時間欄位能成功自動帶入
 function initCheckoutTime() {
   const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
   
-  const year = now.getFullYear();
-  const month = pad(now.getMonth() + 1);
-  const day = pad(now.getDate());
-  const hours = pad(now.getHours());
-  const minutes = pad(now.getMinutes());
+  // 自動校正設備的時差
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   
-  document.getElementById('checkoutDate').value = `${year}-${month}-${day}`;
-  document.getElementById('checkoutTime').value = `${hours}:${minutes}`;
+  // 轉換成標準 ISO 字串 (例如 "2026-08-07T17:38:00.000Z")
+  const localISO = now.toISOString();
+  
+  // 精準切割給兩個獨立的欄位
+  const currentDate = localISO.slice(0, 10); // 取出前 10 個字元 "YYYY-MM-DD"
+  const currentTime = localISO.slice(11, 16); // 取出時間部分 "HH:mm"
+  
+  document.getElementById('checkoutDate').value = currentDate;
+  document.getElementById('checkoutTime').value = currentTime;
 }
 
 function switchTab(tabName) {
@@ -633,14 +636,68 @@ function executeVoid(orderId, checkoutTime) {
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
-const canvas = document.getElementById("sigCanvas"); const ctx = canvas.getContext("2d"); let isDrawing = false;
-function startDrawing(e) { isDrawing = true; draw(e); }
-function stopDrawing() { isDrawing = false; ctx.beginPath(); }
-function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect(); const clientX = e.clientX || (e.touches && e.touches[0].clientX); const clientY = e.clientY || (e.touches && e.touches[0].clientY); ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000"; ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top); }
-canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
-function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+const canvas = document.getElementById("sigCanvas"); 
+const ctx = canvas.getContext("2d"); 
+let isDrawing = false;
 
-// 💡 核心優化：結帳時將拆分開來的 Date 與 Time 無縫合併，精準送入資料庫
+function getCoordinates(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  
+  let clientX = e.clientX;
+  let clientY = e.clientY;
+  
+  if (e.touches && e.touches.length > 0) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  }
+  
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+function startDrawing(e) { 
+  isDrawing = true; 
+  ctx.beginPath();
+  draw(e); 
+}
+
+function stopDrawing() { 
+  isDrawing = false; 
+  ctx.beginPath(); 
+}
+
+function draw(e) { 
+  if (!isDrawing) return; 
+  e.preventDefault(); 
+  
+  const coords = getCoordinates(e);
+  
+  ctx.lineWidth = 3; 
+  ctx.lineCap = "round"; 
+  ctx.strokeStyle = "#000"; 
+  
+  ctx.lineTo(coords.x, coords.y); 
+  ctx.stroke(); 
+  
+  ctx.beginPath(); 
+  ctx.moveTo(coords.x, coords.y); 
+}
+
+canvas.addEventListener("mousedown", startDrawing); 
+canvas.addEventListener("mouseup", stopDrawing); 
+canvas.addEventListener("mousemove", draw); 
+canvas.addEventListener("touchstart", startDrawing, {passive: false}); 
+canvas.addEventListener("touchend", stopDrawing); 
+canvas.addEventListener("touchmove", draw, {passive: false});
+
+function clearCanvas() { 
+  ctx.clearRect(0, 0, canvas.width, canvas.height); 
+}
+
 function preparePrintReceipt() {
   const cDate = document.getElementById("checkoutDate").value;
   const cTime = document.getElementById("checkoutTime").value;
@@ -670,7 +727,6 @@ async function startCheckout() {
   let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
   
-  // 💡 增加阻擋判斷，確保日期或時間不能為空
   if (!document.getElementById("checkoutDate").value || !document.getElementById("checkoutTime").value) return alert("請確認結帳日期與時間不可為空！");
   
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0; let paymentSum = 0; let hasEmptyPayment = false;
