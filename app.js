@@ -36,6 +36,7 @@ window.onload = () => {
   initCashierOptions(); 
   renderCategoryButtons(); 
   addPaymentRow();
+  document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
 function initCheckoutTime() {
@@ -50,6 +51,7 @@ function switchTab(tabName) {
   document.getElementById('tab-' + tabName).classList.add('active');
   document.getElementById('content-' + tabName).classList.add('active');
   if (tabName === 'report') loadReport('today'); 
+  if (tabName === 'commission') loadCommissions();
 }
 
 function initCashierOptions() { 
@@ -149,31 +151,24 @@ function addPaymentRow() {
       <option value="扣堂">扣堂</option>
       <option value="儲值金">儲值金</option>
     </select>
-    <input type="number" class="pay-amount-input" placeholder="輸入此方式金額" style="flex: 3; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" oninput="checkPaymentTotal()">
+    <input type="number" class="pay-amount-input" placeholder="金額" style="flex: 3; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color);" oninput="checkPaymentTotal()">
     ${deleteBtnHTML}
   `;
   container.appendChild(row);
   
-  if (paymentRowCount >= maxPaymentRows) {
-    document.getElementById("btnAddPayment").style.display = "none";
-  }
+  if (paymentRowCount >= maxPaymentRows) { document.getElementById("btnAddPayment").style.display = "none"; }
   checkPaymentTotal();
 }
 
 function removePaymentRow(rowId) {
-  document.getElementById(rowId).remove();
-  paymentRowCount--;
-  document.getElementById("btnAddPayment").style.display = "block";
-  checkPaymentTotal();
+  document.getElementById(rowId).remove(); paymentRowCount--;
+  document.getElementById("btnAddPayment").style.display = "block"; checkPaymentTotal();
 }
 
 function checkPaymentTotal() {
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0;
   let paymentSum = 0;
-  
-  document.querySelectorAll(".pay-amount-input").forEach(input => {
-    paymentSum += (parseInt(input.value) || 0);
-  });
+  document.querySelectorAll(".pay-amount-input").forEach(input => { paymentSum += (parseInt(input.value) || 0); });
   
   const feedback = document.getElementById("paymentFeedback");
   if (paymentSum === cartTotal) {
@@ -190,15 +185,10 @@ function calculateTotal() {
     let price = parseInt(row.querySelector(".item-price").value) || 0;
     let qty = parseInt(row.querySelector(".item-qty").value) || 1;
     let subtotal = price * qty;
-    
     if (sName.includes("抵扣")) { total -= Math.abs(subtotal); } else { total += subtotal; }
   });
   document.getElementById("totalAmount").innerText = total; 
-  
-  if (paymentRowCount === 1) {
-    document.querySelector(".pay-amount-input").value = total;
-  }
-  
+  if (paymentRowCount === 1) { document.querySelector(".pay-amount-input").value = total; }
   checkPaymentTotal(); 
   return total;
 }
@@ -208,15 +198,13 @@ function getFinalPaymentString() {
   document.querySelectorAll(".payment-row").forEach(row => {
      const method = row.querySelector(".pay-method-sel").value;
      const amount = parseInt(row.querySelector(".pay-amount-input").value) || 0;
-     if (amount !== 0) { 
-       paymentParts.push(`${method}:${amount}`);
-     }
+     if (amount !== 0) { paymentParts.push(`${method}:${amount}`); }
   });
   return paymentParts.join(", ");
 }
 
 // ==========================================
-// 店務報表 (精準日曆演算法與拆解邏輯)
+// 店務報表 (精準日曆與指定月份)
 // ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
@@ -237,7 +225,7 @@ function getWeekBoundaries(baseDate) {
 }
 
 function toggleTechFilter(techName) {
-  if (techName === "全店金流") return; // 💡 總結算卡片不需要篩選
+  if (techName === "全店金流") return; 
   if (currentTechFilter === techName) currentTechFilter = null; 
   else currentTechFilter = techName; 
   processReportData(currentFilter);
@@ -251,19 +239,26 @@ function loadReport(filterType) {
   const now = new Date();
   let reqMonths = [String(now.getMonth() + 1).padStart(2, '0')]; 
 
-  if (filterType !== 'custom') {
+  if (filterType !== 'custom' && filterType !== 'customMonth') {
     document.getElementById('filter-' + filterType).classList.add('active');
     document.getElementById('customDateFilter').value = ""; 
+    document.getElementById('customMonthFilter').value = "";
     if (filterType === 'week') {
        const bounds = getWeekBoundaries(now);
        const startM = String(bounds.startOfWeek.getMonth() + 1).padStart(2, '0');
        const endM = String(bounds.endOfWeek.getMonth() + 1).padStart(2, '0');
        if (startM !== endM) { reqMonths = [startM, endM]; }
     }
-  } else {
+  } else if (filterType === 'custom') {
     const customDate = document.getElementById("customDateFilter").value;
+    document.getElementById('customMonthFilter').value = "";
     if (!customDate) return; 
     reqMonths = [customDate.split('-')[1]]; 
+  } else if (filterType === 'customMonth') {
+    const customMonth = document.getElementById("customMonthFilter").value; // "YYYY-MM"
+    document.getElementById('customDateFilter').value = "";
+    if (!customMonth) return; 
+    reqMonths = [customMonth.split('-')[1]]; 
   }
   
   const reqMonthStr = reqMonths.join(','); 
@@ -296,24 +291,16 @@ function processReportData(filterType) {
   const thisMonthStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
   const bounds = getWeekBoundaries(now);
 
-  let customDateStr = "";
-  if (filterType === 'custom') {
-    customDateStr = document.getElementById("customDateFilter").value;
-    if (!customDateStr) return; 
-  }
+  let customDateStr = ""; let customMonthStr = "";
+  if (filterType === 'custom') { customDateStr = document.getElementById("customDateFilter").value; if (!customDateStr) return; }
+  if (filterType === 'customMonth') { customMonthStr = document.getElementById("customMonthFilter").value; if (!customMonthStr) return; }
 
   let techRevenue = {}; technicians.forEach(t => techRevenue[t] = 0);
   let cashFlow = { "現金": 0, "刷卡": 0, "匯款": 0, "扣堂": 0, "儲值金": 0 };
   let filteredTotal = 0; 
   let detailedHTML = "";
 
-  const paymentIcons = {
-    "現金": "💵",
-    "刷卡": "💳",
-    "匯款": "🏦",
-    "扣堂": "🎫",
-    "儲值金": "💎"
-  };
+  const paymentIcons = { "現金": "💵", "刷卡": "💳", "匯款": "🏦", "扣堂": "🎫", "儲值金": "💎" };
 
   allReportData.forEach(row => {
     const rawTimeStr = String(row["結帳時間"]);
@@ -324,17 +311,13 @@ function processReportData(filterType) {
     const isVoid = (row["收據明細狀態"] === "作廢");
 
     let isMatch = false;
-    if (filterType === 'today') { 
-      isMatch = (rowDateStr === todayStr); 
-    } else if (filterType === 'custom') {
-      isMatch = (rowDateStr === customDateStr);
-    } else if (filterType === 'month') { 
-      isMatch = rowDateStr.startsWith(thisMonthStr); 
-    } else if (filterType === 'week') {
+    if (filterType === 'today') { isMatch = (rowDateStr === todayStr); } 
+    else if (filterType === 'custom') { isMatch = (rowDateStr === customDateStr); } 
+    else if (filterType === 'month') { isMatch = rowDateStr.startsWith(thisMonthStr); } 
+    else if (filterType === 'customMonth') { isMatch = rowDateStr.startsWith(customMonthStr); }
+    else if (filterType === 'week') {
       const rowMidnight = new Date(rowDateObj.getFullYear(), rowDateObj.getMonth(), rowDateObj.getDate()).getTime();
-      const startMidnight = bounds.startOfWeek.getTime();
-      const endMidnight = bounds.endOfWeek.getTime();
-      isMatch = (rowMidnight >= startMidnight && rowMidnight <= endMidnight);
+      isMatch = (rowMidnight >= bounds.startOfWeek.getTime() && rowMidnight <= bounds.endOfWeek.getTime());
     }
 
     if (isMatch) {
@@ -344,20 +327,14 @@ function processReportData(filterType) {
       if (!isVoid) {
         let methodStr = row["收款方式"] || "現金";
         if (methodStr.includes(":")) {
-          let parts = methodStr.split(",");
-          parts.forEach(part => {
+          methodStr.split(",").forEach(part => {
             let [m, amtStr] = part.split(":");
-            let amt = parseInt(amtStr) || 0;
-            m = m.trim();
+            let amt = parseInt(amtStr) || 0; m = m.trim();
             if (cashFlow[m] !== undefined) cashFlow[m] += amt;
           });
         } else {
           let method = methodStr.trim();
-          if (cashFlow[method] !== undefined) {
-            cashFlow[method] += rowAmount;
-          } else {
-            cashFlow["現金"] += rowAmount;
-          }
+          if (cashFlow[method] !== undefined) { cashFlow[method] += rowAmount; } else { cashFlow["現金"] += rowAmount; }
         }
       }
 
@@ -393,7 +370,7 @@ function processReportData(filterType) {
       const phoneDisplay = row["手機號碼"] ? `<br><span style="font-size:0.85em; color:#666;">📞 ${row["手機號碼"]}</span>` : "";
 
       let paymentBadge = "";
-      if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
+      if (!isVoid) {
         const pMethodStr = row["收款方式"] || "現金";
         if (pMethodStr.includes(":")) {
            let badgeHtml = "";
@@ -430,34 +407,25 @@ function processReportData(filterType) {
   const cashFlowGrid = document.getElementById("cashFlowGrid");
   const archiveSection = document.getElementById("archiveSection");
 
-  // 💡 調整：讓本週、本月報表也開放看最上方的金流比例細項（但隱藏歸檔按鈕）
-  if (filterType === 'today' || filterType === 'custom' || filterType === 'week' || filterType === 'month') {
-    cashFlowBox.style.display = "block";
-    archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
-    
-    let boxTitle = filterType === 'today' ? "💵 當日現金流結算" : 
-                   filterType === 'week' ? "💵 本週現金流結算" : 
-                   filterType === 'month' ? "💵 本月現金流結算" : "💵 該日現金流結算";
-                   
-    cashFlowBox.querySelector("h4").innerText = `${boxTitle} (依收款方式統整拆解)`;
-    
-    cashFlowGrid.innerHTML = `
-      <div class="cashflow-item">💵 現金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["現金"].toLocaleString()}</span></div>
-      <div class="cashflow-item">💳 刷卡<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["刷卡"].toLocaleString()}</span></div>
-      <div class="cashflow-item">🏦 匯款<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["匯款"].toLocaleString()}</span></div>
-      <div class="cashflow-item">🎫 扣堂<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["扣堂"].toLocaleString()}</span></div>
-      <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
-    `;
-  } else {
-    cashFlowBox.style.display = "none";
-    archiveSection.style.display = "none";
-  }
+  cashFlowBox.style.display = "block";
+  archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
+  let boxTitle = "💵 該區間現金流結算";
+  cashFlowBox.querySelector("h4").innerText = `${boxTitle} (依收款方式統整拆解)`;
+  cashFlowGrid.innerHTML = `
+    <div class="cashflow-item">💵 現金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["現金"].toLocaleString()}</span></div>
+    <div class="cashflow-item">💳 刷卡<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["刷卡"].toLocaleString()}</span></div>
+    <div class="cashflow-item">🏦 匯款<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["匯款"].toLocaleString()}</span></div>
+    <div class="cashflow-item">🎫 扣堂<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["扣堂"].toLocaleString()}</span></div>
+    <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
+  `;
 
   let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
   if (filterType === 'week') {
     const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
     const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
     displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) - ${currentTechFilter}` : `本週業績 (${startStr} ~ ${endStr})`;
+  } else if (filterType === 'customMonth') {
+    displayTitle = `指定月份業績 (${document.getElementById("customMonthFilter").value})`;
   }
   
   document.getElementById("dashboardTotalTitle").innerText = displayTitle;
@@ -469,7 +437,6 @@ function processReportData(filterType) {
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
   
-  // 1. 渲染所有一般操作老師 (業績區塊)
   technicians.forEach(t => {
     if(t !== "店面收支") {
       const card = document.createElement("div"); 
@@ -480,42 +447,35 @@ function processReportData(filterType) {
     }
   });
   
-  // 2. 渲染「店面收支」
   const storeCard = document.createElement("div");
   storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
   storeCard.onclick = () => toggleTechFilter("店面收支");
   storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
   summaryDiv.appendChild(storeCard);
   
-  // 💡 3. 新增欄位：「全店總結算金流」 (將所有收支正負相加後的實收總金流，放在最底下)
   const totalCashFlowCard = document.createElement("div");
   totalCashFlowCard.className = "report-card";
-  totalCashFlowCard.style.backgroundColor = "#FDF5E6"; // 醒目的淺橘黃色
+  totalCashFlowCard.style.backgroundColor = "#FDF5E6"; 
   totalCashFlowCard.style.borderColor = "#F5DEB3";
-  totalCashFlowCard.style.cursor = "default"; // 此為總結算展示，無須篩選點擊
-  totalCashFlowCard.innerHTML = `
-    <span style="color: #D2691E; font-weight: 900;">💰 總結算金流 (全店實際總收支)</span> 
-    <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${filteredTotal.toLocaleString()}</span>
-  `;
+  totalCashFlowCard.style.cursor = "default"; 
+  totalCashFlowCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">💰 總結算金流 (全店實際總收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${filteredTotal.toLocaleString()}</span>`;
   summaryDiv.appendChild(totalCashFlowCard);
 }
 
 function executeArchive() {
   let targetDate = "";
-  const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
-  
   if (currentFilter === 'today') {
+    const now = new Date(); const pad = num => String(num).padStart(2, '0');
     targetDate = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   } else if (currentFilter === 'custom') {
     targetDate = document.getElementById("customDateFilter").value;
   }
   
   if (!targetDate) return alert("請先選擇要歸檔的特定日期（或切換至今日業績）！");
-  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔寫入分潤資料表嗎？`)) return;
+  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔並「拆解至分潤資料表」嗎？`)) return;
   
   const archiveBtn = document.querySelector(".btn-archive");
-  archiveBtn.disabled = true; archiveBtn.innerText = "正在寫入分潤資料表，請稍候...";
+  archiveBtn.disabled = true; archiveBtn.innerText = "正在拆解寫入分潤資料表，請稍候...";
   
   fetch(GAS_URL, {
     method: "POST",
@@ -525,12 +485,90 @@ function executeArchive() {
   .then(res => res.json())
   .then(result => {
     alert(result.message);
-    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行業績歸檔";
+    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行分潤拆解歸檔";
   })
   .catch(err => {
     alert("歸檔發生錯誤，請檢查網路連線。");
-    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行業績歸檔";
+    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行分潤拆解歸檔";
   });
+}
+
+// ==========================================
+// 💡 全新功能：分潤與薪水報表抓取
+// ==========================================
+let allCommissionData = [];
+
+function loadCommissions() {
+  const monthVal = document.getElementById('commissionMonthSelector').value; // YYYY-MM
+  if (!monthVal) return;
+
+  const loadingDiv = document.getElementById("loadingCommission");
+  const summaryDiv = document.getElementById("commissionSummary");
+
+  if (allCommissionData.length === 0) {
+    summaryDiv.innerHTML = "";
+    loadingDiv.style.display = "block";
+    fetch(GAS_URL + "?action=get_commissions")
+      .then(res => res.json())
+      .then(res => {
+        if(res.status === "success") { 
+          allCommissionData = res.data; 
+          renderCommissions(monthVal);
+        }
+        loadingDiv.style.display = "none";
+      }).catch(err => { loadingDiv.style.display = "none"; });
+  } else {
+    renderCommissions(monthVal);
+  }
+}
+
+function renderCommissions(monthVal) {
+  const summaryDiv = document.getElementById("commissionSummary");
+  const [yyyy, mm] = monthVal.split('-');
+  const targetPrefix = `${yyyy}-${mm}`; // 例: 2026-08
+
+  let techStats = {};
+  technicians.forEach(t => {
+     if(t !== "店面收支") techStats[t] = { rev: 0, comm: 0 };
+  });
+
+  allCommissionData.forEach(row => {
+     const rawDate = row['消費日期'];
+     if (rawDate && rawDate.startsWith(targetPrefix)) {
+        const t = row['操作老師'];
+        if (techStats[t]) {
+           techStats[t].rev += (parseFloat(row['消費金額']) || 0);
+           techStats[t].comm += (parseFloat(row['分潤金額']) || 0);
+        }
+     }
+  });
+
+  let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤結算</h3>`;
+  let hasData = false;
+
+  for (const t in techStats) {
+     if (techStats[t].rev !== 0 || techStats[t].comm !== 0) {
+        hasData = true;
+        html += `
+          <div class="report-card" style="margin-bottom: 15px; cursor: default;">
+            <div style="flex:1;">
+               <div style="font-size: 1.2em; font-weight:bold; color:var(--text-dark); margin-bottom: 8px;">👩‍💼 ${t}</div>
+               <div style="font-size: 0.9em; color:#666;">總操作業績：$${techStats[t].rev.toLocaleString()}</div>
+            </div>
+            <div style="flex:1; text-align:right;">
+               <div style="font-size: 0.9em; color:#666;">結算應發分潤</div>
+               <div style="font-size: 1.5em; font-weight:bold; color:var(--success-color);">NT$ ${Math.round(techStats[t].comm).toLocaleString()}</div>
+            </div>
+          </div>
+        `;
+     }
+  }
+
+  if (!hasData) {
+     html += `<div style="text-align:center; padding: 20px; color:#999;">本月份尚無已歸檔的分潤資料</div>`;
+  }
+
+  summaryDiv.innerHTML = html;
 }
 
 // ==========================================
@@ -545,42 +583,26 @@ function openVoidModal() {
 function fetchVoidList() {
   const targetDateStr = document.getElementById("voidQueryDate").value;
   if (!targetDateStr) return alert("請先選擇日期！");
-  
   const container = document.getElementById("voidListContainer");
   container.innerHTML = "<p style='text-align:center;'>資料讀取中，請稍候...</p>";
-  
   const reqMonth = targetDateStr.split("-")[1];
-  
   fetch(GAS_URL + "?month=" + reqMonth)
     .then(res => res.json())
     .then(res => {
       if(res.status === "success") {
-        container.innerHTML = "";
-        let hasData = false;
+        container.innerHTML = ""; let hasData = false;
         res.data.forEach(row => {
           if (row["收據明細狀態"] === "作廢") return; 
-
           const rawTimeStr = String(row["結帳時間"]);
           let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
           if (isNaN(rowDateObj.getTime())) return;
-          
           const pad = num => String(num).padStart(2, '0');
           const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
-
           if (rowDateStr === targetDateStr) {
             hasData = true;
             const div = document.createElement("div");
             div.style.cssText = "border: 1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:6px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
-            
-            div.innerHTML = `
-              <div>
-                <strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br>
-                <span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span>
-              </div>
-              <div>
-                <button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button>
-              </div>
-            `;
+            div.innerHTML = `<div><strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br><span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span></div><div><button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button></div>`;
             container.appendChild(div);
           }
         });
@@ -591,44 +613,22 @@ function fetchVoidList() {
 
 function executeVoid(orderId, checkoutTime) {
   if (!confirm(`確定要作廢這筆單據嗎？作廢後業績將歸零，並無法再撤銷！`)) return;
-  
   const container = document.getElementById("voidListContainer");
   container.innerHTML = "<p style='text-align:center; font-weight:bold; color:var(--danger-color);'>作廢處理中，請勿關閉視窗...</p>";
-  
-  fetch(GAS_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "void", order_id: orderId, checkout_time: checkoutTime })
-  })
+  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "void", order_id: orderId, checkout_time: checkoutTime }) })
   .then(res => res.json())
-  .then(result => {
-    alert("作廢成功！系統將自動刷新帳務...");
-    allReportData = []; 
-    loadedMonthStr = "";
-    fetchVoidList(); 
-    loadReport(currentFilter); 
-  })
+  .then(result => { alert("作廢成功！系統將自動刷新帳務..."); allReportData = []; loadedMonthStr = ""; fetchVoidList(); loadReport(currentFilter); })
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
 // ==========================================
 // 簽名板與收據截圖儲存 
 // ==========================================
-const canvas = document.getElementById("sigCanvas");
-const ctx = canvas.getContext("2d");
-let isDrawing = false;
+const canvas = document.getElementById("sigCanvas"); const ctx = canvas.getContext("2d"); let isDrawing = false;
 function startDrawing(e) { isDrawing = true; draw(e); }
 function stopDrawing() { isDrawing = false; ctx.beginPath(); }
-function draw(e) {
-  if (!isDrawing) return; e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY;
-  ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000";
-  ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top);
-}
-canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw);
-canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
+function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect(); const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000"; ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top); }
+canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
 function preparePrintReceipt() {
@@ -636,122 +636,51 @@ function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   const d = new Date(selectedTime);
   currentTimeString = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
-
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
   document.getElementById("rcptTime").innerText = currentTimeString;
   document.getElementById("rcptPayMethod").innerText = getFinalPaymentString(); 
   document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
-
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
   document.querySelectorAll("#cartBody tr").forEach(row => {
-    const sName = row.querySelector(".item-name").value; 
-    const sTech = row.querySelector(".item-tech").value;
-    const sPrice = parseInt(row.querySelector(".item-price").value) || 0;
-    const sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
-    
+    const sName = row.querySelector(".item-name").value; const sTech = row.querySelector(".item-tech").value;
+    const sPrice = parseInt(row.querySelector(".item-price").value) || 0; const sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
     const subtotal = Math.abs(sPrice) * sQty;
-    let displayPrice = "$" + subtotal; 
-    if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
-    
+    let displayPrice = "$" + subtotal; if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
     itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
   });
   document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
 }
 
 async function startCheckout() {
-  const memberName = document.getElementById("memberName").value.trim();
-  if (!memberName) return alert("請輸入會員名稱！");
-  
-  const phone = document.getElementById("memberPhone").value.trim();
-  if (!phone) return alert("請輸入手機號碼！");
-
+  const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
+  const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
-  let priceMissing = false; 
-  document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
+  let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
-  
   if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
-
-  const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0;
-  let paymentSum = 0;
-  let hasEmptyPayment = false;
-  
-  document.querySelectorAll(".pay-amount-input").forEach(input => {
-    const amt = parseInt(input.value);
-    if (isNaN(amt)) {
-      hasEmptyPayment = true;
-    } else {
-      paymentSum += amt;
-    }
-  });
-  
-  if (hasEmptyPayment) {
-    return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
-  }
-  if (paymentSum !== cartTotal) {
-    return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
-  }
-
+  const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0; let paymentSum = 0; let hasEmptyPayment = false;
+  document.querySelectorAll(".pay-amount-input").forEach(input => { const amt = parseInt(input.value); if (isNaN(amt)) { hasEmptyPayment = true; } else { paymentSum += amt; } });
+  if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
+  if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
-  try {
-    preparePrintReceipt(); 
-    const receiptTemplate = document.getElementById("printReceiptTemplate");
-    const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
-    draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8);
-    document.getElementById("signatureModal").style.display = "flex"; btn.innerText = "等待顧客簽名...";
-  } catch (err) { alert("排版截圖發生錯誤，請重試！"); resetBtn(); }
+  try { preparePrintReceipt(); const receiptTemplate = document.getElementById("printReceiptTemplate"); const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8); document.getElementById("signatureModal").style.display = "flex"; btn.innerText = "等待顧客簽名..."; } catch (err) { alert("排版截圖發生錯誤，請重試！"); resetBtn(); }
 }
 
 async function confirmSignature() {
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
   document.getElementById("signatureModal").style.display = "none"; document.getElementById("btnGenerate").innerText = "最終排版產生中...";
-  
   const sigImg = document.getElementById("rcptSignatureImg"); const sigArea = document.getElementById("rcptSignatureArea");
   await new Promise((resolve) => { sigImg.onload = () => { sigArea.style.display = "block"; setTimeout(resolve, 100); }; sigImg.src = canvas.toDataURL("image/png"); });
-  
-  const receiptTemplate = document.getElementById("printReceiptTemplate");
-  const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" });
-  signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8);
-  submitToGAS();
+  const receiptTemplate = document.getElementById("printReceiptTemplate"); const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8); submitToGAS();
 }
 
 function submitToGAS() {
-  document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候...";
-  const cartItems = [];
-  document.querySelectorAll("#cartBody tr").forEach(row => {
-    const sName = row.querySelector(".item-name").value; 
-    let sPrice = parseInt(row.querySelector(".item-price").value) || 0;
-    let sQty = parseInt(row.querySelector(".item-qty").value) || 1;
-    if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice);
-    cartItems.push({ item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty });
-  });
-
-  const payload = {
-    action: "checkout",
-    checkout_time: currentTimeString, 
-    order_id: currentOrderId,
-    member_name: document.getElementById("memberName").value.trim(), 
-    phone_number: document.getElementById("memberPhone").value.trim(), 
-    cashier: document.getElementById("cashier").value,
-    payment_method: getFinalPaymentString(), 
-    payment_unit: document.getElementById("paymentUnit").value,
-    total_amount: calculateTotal(), 
-    cart_items: cartItems, 
-    note: document.getElementById("orderNote").value,
-    draft_base64: draftBase64Data, 
-    signed_base64: signedBase64Data
-  };
-
-  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) })
-  .then(response => response.json())
-  .then(result => {
-    if (result.status === "success") { alert("結帳成功！清晰版收據已存入雲端。"); location.reload(); } 
-    else { alert("儲存回報異常：" + result.message); resetBtn(); }
-  }).catch(error => { alert("網路錯誤，請檢查網路後重試。"); resetBtn(); });
+  document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候..."; const cartItems = [];
+  document.querySelectorAll("#cartBody tr").forEach(row => { const sName = row.querySelector(".item-name").value; let sPrice = parseInt(row.querySelector(".item-price").value) || 0; let sQty = parseInt(row.querySelector(".item-qty").value) || 1; if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice); cartItems.push({ item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty }); });
+  const payload = { action: "checkout", checkout_time: currentTimeString, order_id: currentOrderId, member_name: document.getElementById("memberName").value.trim(), phone_number: document.getElementById("memberPhone").value.trim(), cashier: document.getElementById("cashier").value, payment_method: getFinalPaymentString(), payment_unit: document.getElementById("paymentUnit").value, total_amount: calculateTotal(), cart_items: cartItems, note: document.getElementById("orderNote").value, draft_base64: draftBase64Data, signed_base64: signedBase64Data };
+  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) }).then(response => response.json()).then(result => { if (result.status === "success") { alert("結帳成功！清晰版收據已存入雲端。"); location.reload(); } else { alert("儲存回報異常：" + result.message); resetBtn(); } }).catch(error => { alert("網路錯誤，請檢查網路後重試。"); resetBtn(); });
 }
-
 function resetBtn() { document.getElementById("btnGenerate").disabled = false; document.getElementById("btnGenerate").innerText = "產生確認單並簽名"; }
