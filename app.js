@@ -39,18 +39,11 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心修復：這一次我確定放進去的是「純字串拼湊法」，保證抓到最原始的本地 24 小時制！
+// 💡 核心修復 1：完全回溯至早上穩定版本的時區寫法，確保 24 小時制無誤差
 function initCheckoutTime() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  
-  // 拼湊成 YYYY-MM-DDTHH:mm 格式，完全避開 toISOString() 與時區偏移的 Bug
-  const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-  document.getElementById('checkoutDateTime').value = formattedDateTime;
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
 }
 
 function switchTab(tabName) {
@@ -632,16 +625,62 @@ function executeVoid(orderId, checkoutTime) {
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
-const canvas = document.getElementById("sigCanvas"); const ctx = canvas.getContext("2d"); let isDrawing = false;
-function startDrawing(e) { isDrawing = true; draw(e); }
-function stopDrawing() { isDrawing = false; ctx.beginPath(); }
-function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canvas.getBoundingClientRect(); const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000"; ctx.lineTo(clientX - rect.left, clientY - rect.top); ctx.stroke(); ctx.beginPath(); ctx.moveTo(clientX - rect.left, clientY - rect.top); }
-canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
-function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+// 💡 核心修復 2：簽名板深度優化，加入 scaleX 與 scaleY 絕對座標校正
+const canvas = document.getElementById("sigCanvas"); 
+const ctx = canvas.getContext("2d"); 
+let isDrawing = false;
 
+function startDrawing(e) { 
+  isDrawing = true; 
+  ctx.beginPath(); // 確保每次下筆都是全新路徑，避免跟上一個點連線
+  draw(e); 
+}
+
+function stopDrawing() { 
+  isDrawing = false; 
+  ctx.beginPath(); 
+}
+
+function draw(e) { 
+  if (!isDrawing) return; 
+  e.preventDefault(); 
+  
+  // 動態計算 Canvas 實際顯示尺寸與內部像素的縮放比例
+  const rect = canvas.getBoundingClientRect(); 
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX); 
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY); 
+  
+  ctx.lineWidth = 3; 
+  ctx.lineCap = "round"; 
+  ctx.strokeStyle = "#000"; 
+  
+  // 套用縮放比例校正座標，讓墨水精準跟隨指尖
+  ctx.lineTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY); 
+  ctx.stroke(); 
+  ctx.beginPath(); 
+  ctx.moveTo((clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY); 
+}
+
+canvas.addEventListener("mousedown", startDrawing); 
+canvas.addEventListener("mouseup", stopDrawing); 
+canvas.addEventListener("mousemove", draw); 
+canvas.addEventListener("touchstart", startDrawing, {passive: false}); 
+canvas.addEventListener("touchend", stopDrawing); 
+canvas.addEventListener("touchmove", draw, {passive: false});
+
+function clearCanvas() { 
+  ctx.clearRect(0, 0, canvas.width, canvas.height); 
+}
+
+// 💡 核心修復 3：回溯早上 11 點最穩定的時間處理邏輯
 function preparePrintReceipt() {
+  const pad = num => String(num).padStart(2, '0');
   const selectedTime = document.getElementById("checkoutDateTime").value;
-  currentTimeString = selectedTime.replace('T', ' '); 
+  const d = new Date(selectedTime);
+  currentTimeString = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
   const memberName = document.getElementById("memberName").value.trim();
