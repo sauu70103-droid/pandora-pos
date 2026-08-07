@@ -39,18 +39,14 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心優化：手動拼湊字串，保證跨平台抓取並顯示當下最精準的時間
 function initCheckoutTime() {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
-  
   const year = now.getFullYear();
   const month = pad(now.getMonth() + 1);
   const day = pad(now.getDate());
   const hours = pad(now.getHours());
   const minutes = pad(now.getMinutes());
-  
-  // 組合成標準的 YYYY-MM-DDTHH:mm 格式，寫入單一欄位中
   const localISO = `${year}-${month}-${day}T${hours}:${minutes}`;
   document.getElementById('checkoutDateTime').value = localISO;
 }
@@ -440,9 +436,19 @@ function processReportData(filterType) {
 
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
+
+  // 💡 1. 調整順序：先把「店面收支」畫在最上面
+  const storeCard = document.createElement("div");
+  storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
+  storeCard.onclick = () => toggleTechFilter("店面收支");
+  storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
+  summaryDiv.appendChild(storeCard);
   
+  // 💡 2. 調整順序：把「各位老師」畫在中間，並同時加總純老師的總業績
+  let teachersTotalRevenue = 0;
   technicians.forEach(t => {
     if(t !== "店面收支") {
+      teachersTotalRevenue += techRevenue[t];
       const card = document.createElement("div"); 
       card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
       card.onclick = () => toggleTechFilter(t); 
@@ -451,19 +457,14 @@ function processReportData(filterType) {
     }
   });
   
-  const storeCard = document.createElement("div");
-  storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
-  storeCard.onclick = () => toggleTechFilter("店面收支");
-  storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
-  summaryDiv.appendChild(storeCard);
-  
-  const totalCashFlowCard = document.createElement("div");
-  totalCashFlowCard.className = "report-card";
-  totalCashFlowCard.style.backgroundColor = "#FDF5E6"; 
-  totalCashFlowCard.style.borderColor = "#F5DEB3";
-  totalCashFlowCard.style.cursor = "default"; 
-  totalCashFlowCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">💰 總結算金流 (全店實際總收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${filteredTotal.toLocaleString()}</span>`;
-  summaryDiv.appendChild(totalCashFlowCard);
+  // 💡 3. 全新計算卡片：最下方只顯示純老師加總的「總業績額」
+  const totalPerformanceCard = document.createElement("div");
+  totalPerformanceCard.className = "report-card";
+  totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
+  totalPerformanceCard.style.borderColor = "#F5DEB3";
+  totalPerformanceCard.style.cursor = "default"; 
+  totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
+  summaryDiv.appendChild(totalPerformanceCard);
 }
 
 async function executeArchive() {
@@ -696,7 +697,6 @@ function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
-// 💡 核心優化：直接將選單的 T 取代為空格，不重新解析時間，防呆防出錯！
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
