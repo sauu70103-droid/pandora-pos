@@ -39,22 +39,20 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
-// 💡 核心修復：使用最穩定的時區校正與字串切割法，確保分開的日期與時間欄位能成功自動帶入
+// 💡 核心優化：手動拼湊字串，保證跨平台抓取並顯示當下最精準的時間
 function initCheckoutTime() {
   const now = new Date();
+  const pad = num => String(num).padStart(2, '0');
   
-  // 自動校正設備的時差
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  const year = now.getFullYear();
+  const month = pad(now.getMonth() + 1);
+  const day = pad(now.getDate());
+  const hours = pad(now.getHours());
+  const minutes = pad(now.getMinutes());
   
-  // 轉換成標準 ISO 字串 (例如 "2026-08-07T17:38:00.000Z")
-  const localISO = now.toISOString();
-  
-  // 精準切割給兩個獨立的欄位
-  const currentDate = localISO.slice(0, 10); // 取出前 10 個字元 "YYYY-MM-DD"
-  const currentTime = localISO.slice(11, 16); // 取出時間部分 "HH:mm"
-  
-  document.getElementById('checkoutDate').value = currentDate;
-  document.getElementById('checkoutTime').value = currentTime;
+  // 組合成標準的 YYYY-MM-DDTHH:mm 格式，寫入單一欄位中
+  const localISO = `${year}-${month}-${day}T${hours}:${minutes}`;
+  document.getElementById('checkoutDateTime').value = localISO;
 }
 
 function switchTab(tabName) {
@@ -698,10 +696,10 @@ function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
+// 💡 核心優化：直接將選單的 T 取代為空格，不重新解析時間，防呆防出錯！
 function preparePrintReceipt() {
-  const cDate = document.getElementById("checkoutDate").value;
-  const cTime = document.getElementById("checkoutTime").value;
-  currentTimeString = `${cDate} ${cTime}`; 
+  const selectedTime = document.getElementById("checkoutDateTime").value;
+  currentTimeString = selectedTime.replace('T', ' '); 
   
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
   const memberName = document.getElementById("memberName").value.trim();
@@ -727,7 +725,7 @@ async function startCheckout() {
   let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
   
-  if (!document.getElementById("checkoutDate").value || !document.getElementById("checkoutTime").value) return alert("請確認結帳日期與時間不可為空！");
+  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳日期與時間不可為空！");
   
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0; let paymentSum = 0; let hasEmptyPayment = false;
   document.querySelectorAll(".pay-amount-input").forEach(input => { const amt = parseInt(input.value); if (isNaN(amt)) { hasEmptyPayment = true; } else { paymentSum += amt; } });
