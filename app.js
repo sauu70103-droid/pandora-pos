@@ -39,10 +39,12 @@ window.onload = () => {
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
 };
 
+// 💡 核心修復 1：安全初始化本地時間，杜絕時差偏移
 function initCheckoutTime() {
   const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById('checkoutDateTime').value = now.toISOString().slice(0,16);
+  const pad = num => String(num).padStart(2, '0');
+  const localISO = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('checkoutDateTime').value = localISO;
 }
 
 function switchTab(tabName) {
@@ -123,9 +125,6 @@ function addToCart(itemName, itemPrice) {
 
 function removeCartItem(btn) { btn.closest("tr").remove(); calculateTotal(); }
 
-// ==========================================
-// 動態收款與金額比對核心邏輯
-// ==========================================
 let paymentRowCount = 0;
 const maxPaymentRows = 3; 
 
@@ -203,9 +202,6 @@ function getFinalPaymentString() {
   return paymentParts.join(", ");
 }
 
-// ==========================================
-// 店務報表 (精準日曆與指定月份)
-// ==========================================
 let allReportData = []; 
 let currentFilter = 'today';
 let currentTechFilter = null; 
@@ -255,7 +251,7 @@ function loadReport(filterType) {
     if (!customDate) return; 
     reqMonths = [customDate.split('-')[1]]; 
   } else if (filterType === 'customMonth') {
-    const customMonth = document.getElementById("customMonthFilter").value; // "YYYY-MM"
+    const customMonth = document.getElementById("customMonthFilter").value; 
     document.getElementById('customDateFilter').value = "";
     if (!customMonth) return; 
     reqMonths = [customMonth.split('-')[1]]; 
@@ -462,7 +458,7 @@ function processReportData(filterType) {
   summaryDiv.appendChild(totalCashFlowCard);
 }
 
-function executeArchive() {
+async function executeArchive() {
   let targetDate = "";
   if (currentFilter === 'today') {
     const now = new Date(); const pad = num => String(num).padStart(2, '0');
@@ -472,15 +468,30 @@ function executeArchive() {
   }
   
   if (!targetDate) return alert("請先選擇要歸檔的特定日期（或切換至今日業績）！");
-  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔並「拆解至分潤資料表」嗎？`)) return;
+  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔並「拆解至分潤資料表」嗎？\n(系統將會同時進行畫面長截圖作為備份)`)) return;
   
   const archiveBtn = document.querySelector(".btn-archive");
-  archiveBtn.disabled = true; archiveBtn.innerText = "正在拆解寫入分潤資料表，請稍候...";
+  archiveBtn.disabled = true; 
+  archiveBtn.innerText = "正在截取報表畫面並執行歸檔中，請稍候...";
   
+  let base64Img = "";
+  try {
+    const reportNode = document.getElementById("content-report");
+    const canvas = await html2canvas(reportNode, { scale: 1, backgroundColor: "#F7F3EE", useCORS: true });
+    base64Img = canvas.toDataURL("image/jpeg", 0.7);
+  } catch(e) {
+    console.error("截圖失敗", e);
+    alert("前端截圖產生失敗，這可能導致本次歸檔沒有圖片備份。錯誤碼：" + e.toString());
+  }
+
   fetch(GAS_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "archive", target_date: targetDate })
+    body: JSON.stringify({ 
+      action: "archive", 
+      target_date: targetDate,
+      report_image_base64: base64Img 
+    })
   })
   .then(res => res.json())
   .then(result => {
@@ -493,13 +504,10 @@ function executeArchive() {
   });
 }
 
-// ==========================================
-// 💡 全新功能：分潤與薪水報表抓取
-// ==========================================
 let allCommissionData = [];
 
 function loadCommissions() {
-  const monthVal = document.getElementById('commissionMonthSelector').value; // YYYY-MM
+  const monthVal = document.getElementById('commissionMonthSelector').value; 
   if (!monthVal) return;
 
   const loadingDiv = document.getElementById("loadingCommission");
@@ -525,7 +533,7 @@ function loadCommissions() {
 function renderCommissions(monthVal) {
   const summaryDiv = document.getElementById("commissionSummary");
   const [yyyy, mm] = monthVal.split('-');
-  const targetPrefix = `${yyyy}-${mm}`; // 例: 2026-08
+  const targetPrefix = `${yyyy}-${mm}`; 
 
   let techStats = {};
   technicians.forEach(t => {
@@ -571,9 +579,6 @@ function renderCommissions(monthVal) {
   summaryDiv.innerHTML = html;
 }
 
-// ==========================================
-// 單據查詢與作廢管理
-// ==========================================
 function openVoidModal() {
   document.getElementById("voidModal").style.display = "flex";
   document.getElementById("voidQueryDate").value = new Date().toISOString().split('T')[0];
@@ -621,9 +626,6 @@ function executeVoid(orderId, checkoutTime) {
   .catch(err => alert("處理失敗請確認網路後重試"));
 }
 
-// ==========================================
-// 簽名板與收據截圖儲存 
-// ==========================================
 const canvas = document.getElementById("sigCanvas"); const ctx = canvas.getContext("2d"); let isDrawing = false;
 function startDrawing(e) { isDrawing = true; draw(e); }
 function stopDrawing() { isDrawing = false; ctx.beginPath(); }
@@ -631,11 +633,11 @@ function draw(e) { if (!isDrawing) return; e.preventDefault(); const rect = canv
 canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
+// 💡 核心修復 2：直接解析字串，杜絕 Safari 時間偏移 Bug
 function preparePrintReceipt() {
-  const pad = num => String(num).padStart(2, '0');
-  const selectedTime = document.getElementById("checkoutDateTime").value;
-  const d = new Date(selectedTime);
-  currentTimeString = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const selectedTime = document.getElementById("checkoutDateTime").value; // "YYYY-MM-DDTHH:mm"
+  currentTimeString = selectedTime.replace('T', ' '); 
+  
   if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
