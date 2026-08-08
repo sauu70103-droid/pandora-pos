@@ -79,6 +79,7 @@ function renderCategoryButtons() {
   }
 }
 
+// 💡 修正 1：在選取細項時，將大項分類 (category) 一併傳遞給購物車
 function renderSubItems(category) {
   const container = document.getElementById("subItemContainer");
   const grid = document.getElementById("subItemGrid");
@@ -88,12 +89,14 @@ function renderSubItems(category) {
     const price = subItems[subName];
     const btn = document.createElement("button"); btn.className = "btn-subitem";
     btn.innerText = `${subName} (${price === "*" ? "自訂" : "$" + price})`;
-    btn.onclick = () => addToCart(subName, price);
+    // 把 category 傳進去
+    btn.onclick = () => addToCart(category, subName, price);
     grid.appendChild(btn);
   }
 }
 
-function addToCart(itemName, itemPrice) {
+// 💡 修正 2：將傳進來的大項分類，寫入隱藏的 <input class="item-category"> 中
+function addToCart(category, itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
   const currentCashier = document.getElementById("cashier").value;
@@ -116,7 +119,12 @@ function addToCart(itemName, itemPrice) {
                      ${qtyOptions}
                    </select>`;
   
-  tr.innerHTML = `<td style="text-align:left; font-weight:bold;"><input type="hidden" class="item-name" value="${itemName}">${itemName}</td>
+  tr.innerHTML = `<td style="text-align:left; font-weight:bold;">
+                    <input type="hidden" class="item-category" value="${category}">
+                    <input type="hidden" class="item-name" value="${itemName}">
+                    <div style="font-size:0.75em; color:#888; font-weight:normal; margin-bottom:3px;">${category}</div>
+                    ${itemName}
+                  </td>
                   <td><select class="item-tech">${techOptions}</select></td>
                   <td>${inputHTML}</td>
                   <td>${qtyHTML}</td>
@@ -284,6 +292,7 @@ function loadReport(filterType) {
   }
 }
 
+// 💡 修正 3：產生報表時，優先讀取綁定好的分類 (i.category)
 function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
@@ -361,7 +370,8 @@ function processReportData(filterType) {
         let qty = parseInt(i.qty) || 1;
         let price = parseInt(i.price) || 0;
         let subtotal = Math.abs(price * qty);
-        let category = getCategoryByItemName(i.item_name);
+        // 優先讀取保存的 i.category，若無則啟動相容模式用舊方法找
+        let category = i.category || getCategoryByItemName(i.item_name);
         let priceDisplay = (i.item_name.includes("抵扣")) ? `-$${subtotal}` : `$${subtotal}`;
         return `${category}＿${i.item_name} * ${qty} - (${priceDisplay}) (${i.technician})`;
       }).join('<br>');
@@ -437,14 +447,12 @@ function processReportData(filterType) {
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
 
-  // 💡 1. 調整順序：先把「店面收支」畫在最上面
   const storeCard = document.createElement("div");
   storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
   storeCard.onclick = () => toggleTechFilter("店面收支");
   storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
   summaryDiv.appendChild(storeCard);
   
-  // 💡 2. 調整順序：把「各位老師」畫在中間，並同時加總純老師的總業績
   let teachersTotalRevenue = 0;
   technicians.forEach(t => {
     if(t !== "店面收支") {
@@ -457,7 +465,6 @@ function processReportData(filterType) {
     }
   });
   
-  // 💡 3. 全新計算卡片：最下方只顯示純老師加總的「總業績額」
   const totalPerformanceCard = document.createElement("div");
   totalPerformanceCard.className = "report-card";
   totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
@@ -708,11 +715,19 @@ function preparePrintReceipt() {
   document.getElementById("rcptPayMethod").innerText = getFinalPaymentString(); 
   document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
+  
+  // 💡 修正 4：送出資料庫前，將隱藏的 category 一併打包
   document.querySelectorAll("#cartBody tr").forEach(row => {
-    const sName = row.querySelector(".item-name").value; const sTech = row.querySelector(".item-tech").value;
-    const sPrice = parseInt(row.querySelector(".item-price").value) || 0; const sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
+    const sCategory = row.querySelector(".item-category").value;
+    const sName = row.querySelector(".item-name").value; 
+    const sTech = row.querySelector(".item-tech").value;
+    const sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
+    const sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
+    
     const subtotal = Math.abs(sPrice) * sQty;
-    let displayPrice = "$" + subtotal; if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
+    let displayPrice = "$" + subtotal; 
+    if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
+    
     itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
   });
   document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
@@ -724,13 +739,11 @@ async function startCheckout() {
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
   let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
-  
-  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳日期與時間不可為空！");
-  
+  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0; let paymentSum = 0; let hasEmptyPayment = false;
   document.querySelectorAll(".pay-amount-input").forEach(input => { const amt = parseInt(input.value); if (isNaN(amt)) { hasEmptyPayment = true; } else { paymentSum += amt; } });
   if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
-  if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
+  if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核貼金額後再進行結帳簽名。`);
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
   try { preparePrintReceipt(); const receiptTemplate = document.getElementById("printReceiptTemplate"); const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8); document.getElementById("signatureModal").style.display = "flex"; btn.innerText = "等待顧客簽名..."; } catch (err) { alert("排版截圖發生錯誤，請重試！"); resetBtn(); }
 }
@@ -746,7 +759,16 @@ async function confirmSignature() {
 
 function submitToGAS() {
   document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候..."; const cartItems = [];
-  document.querySelectorAll("#cartBody tr").forEach(row => { const sName = row.querySelector(".item-name").value; let sPrice = parseInt(row.querySelector(".item-price").value) || 0; let sQty = parseInt(row.querySelector(".item-qty").value) || 1; if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice); cartItems.push({ item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty }); });
+  document.querySelectorAll("#cartBody tr").forEach(row => { 
+    // 💡 修正 5：將 category 綁定進 JSON 陣列中上傳給後台
+    const sCategory = row.querySelector(".item-category").value;
+    const sName = row.querySelector(".item-name").value; 
+    let sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
+    let sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
+    if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice); 
+    cartItems.push({ category: sCategory, item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty }); 
+  });
+  
   const payload = { action: "checkout", checkout_time: currentTimeString, order_id: currentOrderId, member_name: document.getElementById("memberName").value.trim(), phone_number: document.getElementById("memberPhone").value.trim(), cashier: document.getElementById("cashier").value, payment_method: getFinalPaymentString(), payment_unit: document.getElementById("paymentUnit").value, total_amount: calculateTotal(), cart_items: cartItems, note: document.getElementById("orderNote").value, draft_base64: draftBase64Data, signed_base64: signedBase64Data };
   fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) }).then(response => response.json()).then(result => { if (result.status === "success") { alert("結帳成功！清晰版收據已存入雲端。"); location.reload(); } else { alert("儲存回報異常：" + result.message); resetBtn(); } }).catch(error => { alert("網路錯誤，請檢查網路後重試。"); resetBtn(); });
 }
