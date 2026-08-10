@@ -41,32 +41,13 @@ window.onload = () => {
 
 function initCheckoutTime() {
   const now = new Date();
-  
-  const options = { 
-    timeZone: 'Asia/Taipei', 
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: false
-  };
-  
-  const formatter = new Intl.DateTimeFormat('en-US', options);
-  const parts = formatter.formatToParts(now);
-  
-  let year, month, day, hour, minute;
-  parts.forEach(p => {
-    if(p.type === 'year') year = p.value;
-    if(p.type === 'month') month = p.value;
-    if(p.type === 'day') day = p.value;
-    if(p.type === 'hour') hour = p.value;
-    if(p.type === 'minute') minute = p.value;
-  });
-  
-  if (hour === '24') hour = '00';
-  
-  const localISO = `${year}-${month}-${day}T${hour}:${minute}`;
+  const pad = num => String(num).padStart(2, '0');
+  const year = now.getFullYear();
+  const month = pad(now.getMonth() + 1);
+  const day = pad(now.getDate());
+  const hours = pad(now.getHours());
+  const minutes = pad(now.getMinutes());
+  const localISO = `${year}-${month}-${day}T${hours}:${minutes}`;
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
@@ -534,6 +515,19 @@ async function executeArchive() {
   });
 }
 
+// 💡 點擊觸發每日明細表展開/收合
+window.toggleDailyTable = function(id) {
+  const el = document.getElementById(id);
+  const arrow = document.getElementById('arrow-' + id);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    if (arrow) arrow.innerText = "▲";
+  } else {
+    el.style.display = 'none';
+    if (arrow) arrow.innerText = "▼";
+  }
+};
+
 let allCommissionData = [];
 
 function loadCommissions() {
@@ -565,38 +559,97 @@ function renderCommissions(monthVal) {
   const [yyyy, mm] = monthVal.split('-');
   const targetPrefix = `${yyyy}-${mm}`; 
 
+  // 取得當月總天數 (例如 8月會有 31 天)
+  const daysInMonth = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
+
   let techStats = {};
   technicians.forEach(t => {
-     if(t !== "店面收支") techStats[t] = { rev: 0, comm: 0 };
+     if(t !== "店面收支") {
+       techStats[t] = { rev: 0, comm: 0, daily: {} };
+       // 💡 初始化當月 1~31 每一天的資料結構，預設為 0
+       for(let d = 1; d <= daysInMonth; d++) {
+         const dayStr = String(d).padStart(2, '0');
+         techStats[t].daily[`${yyyy}-${mm}-${dayStr}`] = { rev: 0, comm: 0 };
+       }
+     }
   });
 
   allCommissionData.forEach(row => {
-     const rawDate = row['消費日期'];
-     if (rawDate && rawDate.startsWith(targetPrefix)) {
+     const rawDateStr = row['消費日期']; // 可能是 "2026-08-07 17:38" 或 "2026-08-07"
+     if (rawDateStr && rawDateStr.startsWith(targetPrefix)) {
+        const dateOnly = rawDateStr.split(' ')[0]; // 只擷取日期部分
         const t = row['操作老師'];
         if (techStats[t]) {
-           techStats[t].rev += (parseFloat(row['消費金額']) || 0);
-           techStats[t].comm += (parseFloat(row['分潤金額']) || 0);
+           const rev = parseFloat(row['消費金額']) || 0;
+           const comm = parseFloat(row['分潤金額']) || 0;
+           
+           techStats[t].rev += rev;
+           techStats[t].comm += comm;
+           
+           if(techStats[t].daily[dateOnly]) {
+              techStats[t].daily[dateOnly].rev += rev;
+              techStats[t].daily[dateOnly].comm += comm;
+           }
         }
      }
   });
 
-  let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤結算</h3>`;
+  let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤結算與每日明細</h3>`;
   let hasData = false;
 
   for (const t in techStats) {
      if (techStats[t].rev !== 0 || techStats[t].comm !== 0) {
         hasData = true;
+
+        // 💡 產生隱藏的當月每一天日曆明細表
+        let dailyTableHTML = `
+          <div id="daily-${t}" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
+            <table class="detailed-table" style="width: 100%; font-size: 0.9em;">
+              <thead>
+                <tr>
+                  <th style="width: 30%; background-color: #E2D6C8;">日期</th>
+                  <th style="width: 35%; background-color: #E2D6C8;">單日業績</th>
+                  <th style="width: 35%; background-color: #E2D6C8;">單日分潤</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+           const dayStr = String(d).padStart(2, '0');
+           const fullDate = `${yyyy}-${mm}-${dayStr}`;
+           const dailyData = techStats[t].daily[fullDate];
+
+           // 如果當天掛蛋，則顏色反灰；如果有業績則加粗突顯
+           const revDisplay = dailyData.rev === 0 ? `<span style="color:#bbb;">$0</span>` : `<strong>$${dailyData.rev.toLocaleString()}</strong>`;
+           const commDisplay = dailyData.comm === 0 ? `<span style="color:#bbb;">$0</span>` : `<strong style="color:var(--success-color);">$${Math.round(dailyData.comm).toLocaleString()}</strong>`;
+           const rowStyle = dailyData.rev === 0 ? `background-color: #fafafa;` : ``;
+
+           dailyTableHTML += `
+              <tr style="${rowStyle}">
+                <td>${mm}/${dayStr}</td>
+                <td>${revDisplay}</td>
+                <td>${commDisplay}</td>
+              </tr>
+           `;
+        }
+
+        dailyTableHTML += `</tbody></table></div>`;
+
+        // 💡 組合卡片與明細表，並加上 onclick 展開事件
         html += `
-          <div class="report-card" style="margin-bottom: 15px; cursor: default;">
-            <div style="flex:1;">
-               <div style="font-size: 1.2em; font-weight:bold; color:var(--text-dark); margin-bottom: 8px;">👩‍💼 ${t}</div>
-               <div style="font-size: 0.9em; color:#666;">總操作業績：$${techStats[t].rev.toLocaleString()}</div>
+          <div class="report-card" style="margin-bottom: 15px; cursor: pointer; flex-direction: column; align-items: stretch;" onclick="toggleDailyTable('daily-${t}')">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex:1;">
+                 <div style="font-size: 1.2em; font-weight:bold; color:var(--text-dark); margin-bottom: 8px;">👩‍💼 ${t} <span id="arrow-daily-${t}" style="font-size: 0.7em; color: #999; margin-left: 5px;">▼</span></div>
+                 <div style="font-size: 0.9em; color:#666;">總操作業績：$${techStats[t].rev.toLocaleString()}</div>
+              </div>
+              <div style="flex:1; text-align:right;">
+                 <div style="font-size: 0.9em; color:#666;">結算應發分潤</div>
+                 <div style="font-size: 1.5em; font-weight:bold; color:var(--success-color);">NT$ ${Math.round(techStats[t].comm).toLocaleString()}</div>
+              </div>
             </div>
-            <div style="flex:1; text-align:right;">
-               <div style="font-size: 0.9em; color:#666;">結算應發分潤</div>
-               <div style="font-size: 1.5em; font-weight:bold; color:var(--success-color);">NT$ ${Math.round(techStats[t].comm).toLocaleString()}</div>
-            </div>
+            ${dailyTableHTML}
           </div>
         `;
      }
@@ -718,7 +771,6 @@ function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
-// 💡 核心升級：全新交易單號產生邏輯 (年月日時分秒+隨機碼)，絕對不可能重複！
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
@@ -727,7 +779,6 @@ function preparePrintReceipt() {
   const p = num => String(num).padStart(2, '0');
   const timeStr = `${nowForId.getFullYear()}${p(nowForId.getMonth()+1)}${p(nowForId.getDate())}${p(nowForId.getHours())}${p(nowForId.getMinutes())}${p(nowForId.getSeconds())}`;
   const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  // 強制每次點擊都產生全新單號
   currentOrderId = `F${timeStr}${rand}`;
   
   const memberName = document.getElementById("memberName").value.trim();
