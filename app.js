@@ -3,12 +3,12 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區 (你可以在這裡自由修改 4 位數密碼)
-const SYSTEM_PWD = "96831088"; // 第一層：公司統編
+// 💡 資安防護：密碼設定區
+const SYSTEM_PWD = "96831088"; // 第一層：系統密碼
 const ROLE_PASSWORDS = {
   "9683": "admin",      // 總管理員 (可看全部、歸檔、作廢)
   "1111": "李家蓁",     // 個人密碼 (只能看自己的數字)
-  "2222": "呂函優",     // 個人密碼 (只能看自己的數字)
+  "1007": "呂函優",     // 💡 更新：呂函優老師個人密碼
   "3333": "呂佩穎"      // 個人密碼 (只能看自己的數字)
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
@@ -42,7 +42,6 @@ function getCategoryByItemName(itemName) {
 }
 
 window.onload = () => { 
-  // 💡 檢查第一層鎖 (是否輸入過統編)
   if (!sessionStorage.getItem('systemUnlocked')) {
     document.getElementById('systemLoginModal').style.display = 'flex';
   }
@@ -55,13 +54,13 @@ window.onload = () => {
   updateLogoutButton();
 };
 
-// 💡 資安防護：密碼驗證邏輯
 function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
   } else {
-    alert("❌ 系統密碼錯誤！請輸入正確的公司統編。");
+    // 💡 修正錯誤提示，不出現「統編」字眼
+    alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
   }
 }
@@ -105,7 +104,6 @@ function updateLogoutButton() {
   }
 }
 
-// 支援按下 Enter 鍵解鎖
 document.getElementById('sysPwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifySystemPassword(); });
 document.getElementById('rolePwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifyRolePassword(); });
 
@@ -121,7 +119,6 @@ function initCheckoutTime() {
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
-// 💡 攔截 Tab 切換，檢查是否有第二層報表權限
 function switchTab(tabName) {
   if ((tabName === 'report' || tabName === 'commission') && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
@@ -368,7 +365,6 @@ function loadReport(filterType) {
 }
 
 function processReportData(filterType) {
-  // 💡 動態遮蔽：如果不是管理員，強制將報表篩選為該名老師，不允許看全部
   if (currentRole !== 'admin') {
      currentTechFilter = currentRole; 
   }
@@ -496,7 +492,6 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
-  // 💡 動態遮蔽：隱藏管理員專屬功能
   if (currentRole === 'admin') {
       cashFlowBox.style.display = "block";
       archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
@@ -520,7 +515,6 @@ function processReportData(filterType) {
   let displayTitle = currentRole === 'admin' ? `該區間全店結帳總額` : `專屬個人業績 (目前篩選: ${currentRole})`;
   
   document.getElementById("dashboardTotalTitle").innerText = displayTitle;
-  // 如果是個人，filteredTotal 在上面會算出該老師個人的總額
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
 
   const detailedBody = document.getElementById("detailedReportBody");
@@ -529,7 +523,6 @@ function processReportData(filterType) {
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
 
-  // 💡 動態遮蔽：產生老師卡片時判斷權限
   const storeCard = document.createElement("div");
   if (currentRole === 'admin') {
       storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
@@ -622,7 +615,7 @@ async function executeArchive() {
 }
 
 window.toggleDailyTable = function(id) {
-  if (currentRole !== 'admin' && !id.includes(currentRole)) return; // 防呆：不能點開別人的
+  if (currentRole !== 'admin' && !id.includes(currentRole)) return; 
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
   if (el.style.display === 'none') {
@@ -705,7 +698,6 @@ function renderCommissions(monthVal) {
      if (techStats[t].rev !== 0 || techStats[t].comm !== 0) {
         hasData = true;
 
-        // 💡 動態遮蔽：判斷是否為其他老師
         if (currentRole !== 'admin' && currentRole !== t) {
             html += `
               <div class="report-card" style="margin-bottom: 15px; cursor: not-allowed; background:#f5f5f5;">
