@@ -9,7 +9,7 @@ const ROLE_PASSWORDS = {
   "9683": "admin",      // 總管理員 (可看全部、歸檔、作廢)
   "1111": "李家蓁",     // 個人密碼 (只能看自己的數字)
   "1007": "呂函優",     // 💡 更新：呂函優老師個人密碼
-  "3333": "呂佩穎"      // 個人密碼 (只能看自己的數字)
+  "0505": "呂佩穎"      // 個人密碼 (只能看自己的數字)
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
