@@ -4,22 +4,25 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
 // 💡 資安防護：密碼設定區
-const SYSTEM_PWD = "96831088"; // 第一層：系統大門鎖
+const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
-  "9683": "admin",      // 總管理員
+  "9683": "admin",      
   "1111": "李家蓁",     
-  "1007": "呂函優",     // 更新
-  "0505": "呂佩穎"      // 更新
+  "1007": "呂函優",     
+  "0505": "呂佩穎"      
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
+
+// 💡 新增：自動倒數計時器參數
+let lastActivityTime = Date.now();
+let countdownInterval;
+const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
+const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
 
 let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
-
-let inactivityTimer;
-const INACTIVITY_LIMIT = 10 * 60 * 1000; 
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
@@ -55,45 +58,78 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
-
-  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, resetInactivityTimer);
-  });
-  resetInactivityTimer(); 
+  
+  initIdleTimer(); // 💡 啟動：閒置讀秒器
 };
 
-function lockSystem() {
-  sessionStorage.removeItem('systemUnlocked');
-  sessionStorage.removeItem('currentRole');
+// 💡 核心功能：閒置偵測與自動讀秒
+function initIdleTimer() {
+  // 只要畫面有任何動作，就重置時間
+  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      lastActivityTime = Date.now();
+      // 如果超時提醒彈窗開著，隨便點一下也能自動幫你延長時間並關掉彈窗
+      if(document.getElementById('timeoutWarningModal').style.display === 'flex') {
+         extendSession();
+      }
+    });
+  });
+  countdownInterval = setInterval(checkIdleTime, 1000);
+}
+
+function checkIdleTime() {
+  if (!currentRole) return; // 只有在已登入報表權限時才需要倒數
+
+  const idleTime = Date.now() - lastActivityTime;
+  const remaining = INACTIVITY_LIMIT - idleTime;
+
+  // 時間到！強制登出第三層報表權限
+  if (remaining <= 0) {
+    lockRoleAuth();
+    return;
+  }
+
+  // 換算成 MM:SS 格式並顯示在按鈕旁
+  const mins = Math.floor(remaining / 60000).toString().padStart(2, '0');
+  const secs = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
+  const displayStr = `${mins}:${secs}`;
+  
+  document.getElementById('countdownDisplay').innerText = displayStr;
+
+  // 💡 倒數 2 分鐘時：跳出溫馨提醒視窗
+  if (remaining <= WARNING_LIMIT) {
+    document.getElementById('timeoutWarningModal').style.display = 'flex';
+    document.getElementById('warningCountdown').innerText = displayStr;
+  } else {
+    document.getElementById('timeoutWarningModal').style.display = 'none';
+  }
+}
+
+// 💡 使用者點擊按鈕，重新計時 10 分鐘
+window.extendSession = function() {
+  lastActivityTime = Date.now();
+  document.getElementById('timeoutWarningModal').style.display = 'none';
+  checkIdleTime(); 
+};
+
+// 💡 只鎖定第三層報表權限，不會鎖住第一層統編
+function lockRoleAuth() {
   currentRole = null;
+  sessionStorage.removeItem('currentRole');
+  document.getElementById('timeoutWarningModal').style.display = 'none';
   updateLogoutButton();
   
-  switchTab('checkout'); 
-  
-  document.getElementById('systemLoginModal').style.display = 'flex';
-  document.getElementById('roleLoginModal').style.display = 'none';
-  document.getElementById('sysPwdInput').value = "";
-  document.getElementById('rolePwdInput').value = "";
-}
-
-function resetInactivityTimer() {
-  clearTimeout(inactivityTimer);
-  if (sessionStorage.getItem('systemUnlocked')) {
-    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
+  const activeTab = document.querySelector('.nav-tabs button.active');
+  if (activeTab && activeTab.id === 'tab-commission') {
+     switchTab('checkout');
+     alert("⏳ 閒置時間過長，已自動登出報表權限以保護隱私。");
   }
 }
-
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    lockSystem();
-  }
-});
 
 function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
-    resetInactivityTimer(); 
   } else {
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
@@ -107,6 +143,7 @@ function verifyRolePassword() {
     sessionStorage.setItem('currentRole', currentRole);
     document.getElementById('roleLoginModal').style.display = 'none';
     document.getElementById('rolePwdInput').value = ""; 
+    lastActivityTime = Date.now(); // 登入成功時重新計算 10 分鐘
     updateLogoutButton();
     const targetTab = document.getElementById('roleLoginModal').dataset.targetTab;
     switchTab(targetTab); 
@@ -130,12 +167,13 @@ function logoutRole() {
 }
 
 function updateLogoutButton() {
+  const controls = document.getElementById('roleControls');
   const btn = document.getElementById('btnLogoutRole');
   if (currentRole) {
-    btn.style.display = 'block';
+    controls.style.display = 'flex';
     btn.innerText = `🔒 登出 (${currentRole === 'admin' ? '管理員' : currentRole})`;
   } else {
-    btn.style.display = 'none';
+    controls.style.display = 'none';
   }
 }
 
@@ -155,7 +193,6 @@ function initCheckoutTime() {
 }
 
 function switchTab(tabName) {
-  // 💡 只有 tab-commission 受到保護，report 不再攔截！
   if (tabName === 'commission' && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
     document.getElementById('roleLoginModal').dataset.targetTab = tabName;
@@ -340,7 +377,6 @@ function getWeekBoundaries(baseDate) {
   return { startOfWeek, endOfWeek };
 }
 
-// 💡 報表篩選全開：移除任何角色權限檢查
 function toggleTechFilter(techName) {
   if (techName === "全店金流") return; 
   if (currentTechFilter === techName) currentTechFilter = null; 
@@ -401,7 +437,6 @@ function loadReport(filterType) {
   }
 }
 
-// 💡 報表邏輯全開：移除遮蔽功能，所有人都可以看見所有人的數字並執行作廢歸檔
 function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
@@ -526,7 +561,6 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
-  // 💡 報表元件全開：任何人都能看到現金流、歸檔及作廢面板
   cashFlowBox.style.display = "block";
   archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
   adminTools.style.display = "block";
@@ -633,7 +667,6 @@ async function executeArchive() {
 }
 
 window.toggleDailyTable = function(id) {
-  // 第三頁依然保有權限遮蔽
   if (currentRole !== 'admin' && !id.includes(currentRole)) return; 
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
