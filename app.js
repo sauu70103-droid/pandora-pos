@@ -3,7 +3,6 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區
 const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
@@ -13,16 +12,17 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-// 💡 新增：自動倒數計時器參數
-let lastActivityTime = Date.now();
-let countdownInterval;
-const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
-const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
+let inactivityTimer;
+const INACTIVITY_LIMIT = 10 * 60 * 1000; 
+const WARNING_LIMIT = 2 * 60 * 1000;    
 
 let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
+
+// 💡 新增：防連點、防重複送單的安全鎖定變數
+let isSubmitting = false;
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
@@ -58,78 +58,45 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
-  
-  initIdleTimer(); // 💡 啟動：閒置讀秒器
-};
 
-// 💡 核心功能：閒置偵測與自動讀秒
-function initIdleTimer() {
-  // 只要畫面有任何動作，就重置時間
   ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, () => {
-      lastActivityTime = Date.now();
-      // 如果超時提醒彈窗開著，隨便點一下也能自動幫你延長時間並關掉彈窗
-      if(document.getElementById('timeoutWarningModal').style.display === 'flex') {
-         extendSession();
-      }
-    });
+    document.addEventListener(evt, resetInactivityTimer);
   });
-  countdownInterval = setInterval(checkIdleTime, 1000);
-}
-
-function checkIdleTime() {
-  if (!currentRole) return; // 只有在已登入報表權限時才需要倒數
-
-  const idleTime = Date.now() - lastActivityTime;
-  const remaining = INACTIVITY_LIMIT - idleTime;
-
-  // 時間到！強制登出第三層報表權限
-  if (remaining <= 0) {
-    lockRoleAuth();
-    return;
-  }
-
-  // 換算成 MM:SS 格式並顯示在按鈕旁
-  const mins = Math.floor(remaining / 60000).toString().padStart(2, '0');
-  const secs = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
-  const displayStr = `${mins}:${secs}`;
-  
-  document.getElementById('countdownDisplay').innerText = displayStr;
-
-  // 💡 倒數 2 分鐘時：跳出溫馨提醒視窗
-  if (remaining <= WARNING_LIMIT) {
-    document.getElementById('timeoutWarningModal').style.display = 'flex';
-    document.getElementById('warningCountdown').innerText = displayStr;
-  } else {
-    document.getElementById('timeoutWarningModal').style.display = 'none';
-  }
-}
-
-// 💡 使用者點擊按鈕，重新計時 10 分鐘
-window.extendSession = function() {
-  lastActivityTime = Date.now();
-  document.getElementById('timeoutWarningModal').style.display = 'none';
-  checkIdleTime(); 
+  resetInactivityTimer(); 
 };
 
-// 💡 只鎖定第三層報表權限，不會鎖住第一層統編
-function lockRoleAuth() {
-  currentRole = null;
+function lockSystem() {
+  sessionStorage.removeItem('systemUnlocked');
   sessionStorage.removeItem('currentRole');
-  document.getElementById('timeoutWarningModal').style.display = 'none';
+  currentRole = null;
   updateLogoutButton();
   
-  const activeTab = document.querySelector('.nav-tabs button.active');
-  if (activeTab && activeTab.id === 'tab-commission') {
-     switchTab('checkout');
-     alert("⏳ 閒置時間過長，已自動登出報表權限以保護隱私。");
+  switchTab('checkout'); 
+  
+  document.getElementById('systemLoginModal').style.display = 'flex';
+  document.getElementById('roleLoginModal').style.display = 'none';
+  document.getElementById('sysPwdInput').value = "";
+  document.getElementById('rolePwdInput').value = "";
+}
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  if (sessionStorage.getItem('systemUnlocked')) {
+    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
   }
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    lockSystem();
+  }
+});
 
 function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
+    resetInactivityTimer(); 
   } else {
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
@@ -143,7 +110,7 @@ function verifyRolePassword() {
     sessionStorage.setItem('currentRole', currentRole);
     document.getElementById('roleLoginModal').style.display = 'none';
     document.getElementById('rolePwdInput').value = ""; 
-    lastActivityTime = Date.now(); // 登入成功時重新計算 10 分鐘
+    lastActivityTime = Date.now(); 
     updateLogoutButton();
     const targetTab = document.getElementById('roleLoginModal').dataset.targetTab;
     switchTab(targetTab); 
@@ -182,13 +149,32 @@ document.getElementById('rolePwdInput').addEventListener('keyup', function(e) { 
 
 function initCheckoutTime() {
   const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
-  const year = now.getFullYear();
-  const month = pad(now.getMonth() + 1);
-  const day = pad(now.getDate());
-  const hours = pad(now.getHours());
-  const minutes = pad(now.getMinutes());
-  const localISO = `${year}-${month}-${day}T${hours}:${minutes}`;
+  
+  const options = { 
+    timeZone: 'Asia/Taipei', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false
+  };
+  
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+  const parts = formatter.formatToParts(now);
+  
+  let year, month, day, hour, minute;
+  parts.forEach(p => {
+    if(p.type === 'year') year = p.value;
+    if(p.type === 'month') month = p.value;
+    if(p.type === 'day') day = p.value;
+    if(p.type === 'hour') hour = p.value;
+    if(p.type === 'minute') minute = p.value;
+  });
+  
+  if (hour === '24') hour = '00';
+  
+  const localISO = `${year}-${month}-${day}T${hour}:${minute}`;
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
@@ -620,7 +606,10 @@ function processReportData(filterType) {
   summaryDiv.appendChild(totalPerformanceCard);
 }
 
+// 💡 歸檔防呆：加入 isSubmitting 鎖
 async function executeArchive() {
+  if (isSubmitting) return;
+
   let targetDate = "";
   if (currentFilter === 'today') {
     const now = new Date(); const pad = num => String(num).padStart(2, '0');
@@ -630,11 +619,13 @@ async function executeArchive() {
   }
   
   if (!targetDate) return alert("請先選擇要歸檔的特定日期（或切換至今日業績）！");
-  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔並「拆解至分潤資料表」嗎？\n(系統將會同時進行畫面長截圖作為備份)`)) return;
+  if (!confirm(`確定要將 [${targetDate}] 的所有有效業績歸檔並「拆解至分潤薪水資料表」嗎？\n(系統將會同時進行畫面長截圖作為備份)`)) return;
   
+  isSubmitting = true;
+  document.getElementById("globalLoader").style.display = "flex";
   const archiveBtn = document.querySelector(".btn-archive");
   archiveBtn.disabled = true; 
-  archiveBtn.innerText = "正在截取報表畫面並執行歸檔中，請稍候...";
+  archiveBtn.innerText = "處理中...";
   
   let base64Img = "";
   try {
@@ -658,11 +649,15 @@ async function executeArchive() {
   .then(res => res.json())
   .then(result => {
     alert(result.message);
-    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行分潤拆解歸檔";
   })
   .catch(err => {
     alert("歸檔發生錯誤，請檢查網路連線。");
-    archiveBtn.disabled = false; archiveBtn.innerText = "📁 確認無誤，執行分潤拆解歸檔";
+  })
+  .finally(() => {
+    isSubmitting = false;
+    document.getElementById("globalLoader").style.display = "none";
+    archiveBtn.disabled = false; 
+    archiveBtn.innerText = "📁 確認無誤，執行分潤薪水拆解歸檔";
   });
 }
 
@@ -743,7 +738,7 @@ function renderCommissions(monthVal) {
      }
   });
 
-  let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤結算與每日明細</h3>`;
+  let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤薪水結算與每日明細</h3>`;
   let hasData = false;
 
   for (const t in techStats) {
@@ -758,7 +753,7 @@ function renderCommissions(monthVal) {
                    <div style="font-size: 0.9em; color:#aaa;">總操作業績：***</div>
                 </div>
                 <div style="flex:1; text-align:right;">
-                   <div style="font-size: 0.9em; color:#aaa;">結算應發分潤</div>
+                   <div style="font-size: 0.9em; color:#aaa;">結算應發分潤薪水</div>
                    <div style="font-size: 1.5em; font-weight:bold; color:#aaa;">*** (無權限)</div>
                 </div>
               </div>
@@ -773,7 +768,7 @@ function renderCommissions(monthVal) {
                 <tr>
                   <th style="width: 30%; background-color: #E2D6C8;">日期</th>
                   <th style="width: 35%; background-color: #E2D6C8;">單日業績</th>
-                  <th style="width: 35%; background-color: #E2D6C8;">單日分潤</th>
+                  <th style="width: 35%; background-color: #E2D6C8;">單日分潤薪水</th>
                 </tr>
               </thead>
               <tbody>
@@ -807,7 +802,7 @@ function renderCommissions(monthVal) {
                  <div style="font-size: 0.9em; color:#666;">總操作業績：$${techStats[t].rev.toLocaleString()}</div>
               </div>
               <div style="flex:1; text-align:right;">
-                 <div style="font-size: 0.9em; color:#666;">結算應發分潤</div>
+                 <div style="font-size: 0.9em; color:#666;">結算應發分潤薪水</div>
                  <div style="font-size: 1.5em; font-weight:bold; color:var(--success-color);">NT$ ${Math.round(techStats[t].comm).toLocaleString()}</div>
               </div>
             </div>
@@ -818,7 +813,7 @@ function renderCommissions(monthVal) {
   }
 
   if (!hasData) {
-     html += `<div style="text-align:center; padding: 20px; color:#999;">本月份尚無已歸檔的分潤資料</div>`;
+     html += `<div style="text-align:center; padding: 20px; color:#999;">本月份尚無已歸檔的分潤薪水資料</div>`;
   }
 
   summaryDiv.innerHTML = html;
@@ -967,6 +962,8 @@ function preparePrintReceipt() {
 }
 
 async function startCheckout() {
+  if (isSubmitting) return; // 💡 防連點保護
+
   const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
   const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
@@ -979,21 +976,47 @@ async function startCheckout() {
   document.querySelectorAll(".pay-amount-input").forEach(input => { const amt = parseInt(input.value); if (isNaN(amt)) { hasEmptyPayment = true; } else { paymentSum += amt; } });
   if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
   if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
-  const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
-  try { preparePrintReceipt(); const receiptTemplate = document.getElementById("printReceiptTemplate"); const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8); document.getElementById("signatureModal").style.display = "flex"; btn.innerText = "等待顧客簽名..."; } catch (err) { alert("排版截圖發生錯誤，請重試！"); resetBtn(); }
+  
+  const btn = document.getElementById("btnGenerate"); 
+  btn.disabled = true; 
+  btn.innerText = "處理收據排版中...";
+  
+  try { 
+    preparePrintReceipt(); 
+    const receiptTemplate = document.getElementById("printReceiptTemplate"); 
+    const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); 
+    draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8); 
+    document.getElementById("signatureModal").style.display = "flex"; 
+    btn.innerText = "等待顧客簽名..."; 
+  } catch (err) { 
+    alert("排版截圖發生錯誤，請重試！"); 
+    resetBtn(); 
+  }
 }
 
+// 💡 結帳送單防呆：加入 isSubmitting 鎖與全螢幕遮罩
 async function confirmSignature() {
+  if (isSubmitting) return;
+
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
-  document.getElementById("signatureModal").style.display = "none"; document.getElementById("btnGenerate").innerText = "最終排版產生中...";
-  const sigImg = document.getElementById("rcptSignatureImg"); const sigArea = document.getElementById("rcptSignatureArea");
+  
+  isSubmitting = true; // 上鎖，拒絕後續點擊
+  document.getElementById("signatureModal").style.display = "none"; 
+  document.getElementById("globalLoader").style.display = "flex"; // 啟動全螢幕防護罩
+  document.getElementById("btnGenerate").innerText = "最終排版產生中...";
+  
+  const sigImg = document.getElementById("rcptSignatureImg"); 
+  const sigArea = document.getElementById("rcptSignatureArea");
   await new Promise((resolve) => { sigImg.onload = () => { sigArea.style.display = "block"; setTimeout(resolve, 100); }; sigImg.src = canvas.toDataURL("image/png"); });
-  const receiptTemplate = document.getElementById("printReceiptTemplate"); const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8); submitToGAS();
+  const receiptTemplate = document.getElementById("printReceiptTemplate"); 
+  const finalCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); 
+  signedBase64Data = finalCanvas.toDataURL("image/jpeg", 0.8); 
+  submitToGAS();
 }
 
 function submitToGAS() {
-  document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候..."; const cartItems = [];
+  const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => { 
     const sCategory = row.querySelector(".item-category").value;
     const sName = row.querySelector(".item-name").value; 
@@ -1004,6 +1027,29 @@ function submitToGAS() {
   });
   
   const payload = { action: "checkout", checkout_time: currentTimeString, order_id: currentOrderId, member_name: document.getElementById("memberName").value.trim(), phone_number: document.getElementById("memberPhone").value.trim(), cashier: document.getElementById("cashier").value, payment_method: getFinalPaymentString(), payment_unit: document.getElementById("paymentUnit").value, total_amount: calculateTotal(), cart_items: cartItems, note: document.getElementById("orderNote").value, draft_base64: draftBase64Data, signed_base64: signedBase64Data };
-  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) }).then(response => response.json()).then(result => { if (result.status === "success") { alert("結帳成功！清晰版收據已存入雲端。"); location.reload(); } else { alert("儲存回報異常：" + result.message); resetBtn(); } }).catch(error => { alert("網路錯誤，請檢查網路後重試。"); resetBtn(); });
+  
+  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payload) })
+  .then(response => response.json())
+  .then(result => { 
+    if (result.status === "success") { 
+      alert("結帳成功！清晰版收據已存入雲端。"); 
+      location.reload(); 
+    } else { 
+      alert("儲存回報異常：" + result.message); 
+      resetBtn(); 
+    } 
+  })
+  .catch(error => { 
+    alert("網路錯誤，請檢查網路後重試。"); 
+    resetBtn(); 
+  })
+  .finally(() => {
+    isSubmitting = false; // 解開鎖定
+    document.getElementById("globalLoader").style.display = "none"; // 關閉遮罩
+  });
 }
-function resetBtn() { document.getElementById("btnGenerate").disabled = false; document.getElementById("btnGenerate").innerText = "產生確認單並簽名"; }
+
+function resetBtn() { 
+  document.getElementById("btnGenerate").disabled = false; 
+  document.getElementById("btnGenerate").innerText = "產生確認單並簽名"; 
+}
