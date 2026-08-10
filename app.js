@@ -7,9 +7,9 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD
 const SYSTEM_PWD = "96831088"; // 第一層：系統密碼
 const ROLE_PASSWORDS = {
   "9683": "admin",      // 總管理員 (可看全部、歸檔、作廢)
-  "1111": "李家蓁",     // 個人密碼 (只能看自己的數字)
-  "1007": "呂函優",     // 💡 更新：呂函優老師個人密碼
-  "0505": "呂佩穎"      // 個人密碼 (只能看自己的數字)
+  "1111": "李家蓁",     // 個人密碼 
+  "1007": "呂函優",     // 更新個人密碼
+  "0505": "呂佩穎"      // 更新個人密碼
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
@@ -17,6 +17,9 @@ let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
+
+let inactivityTimer;
+const INACTIVITY_LIMIT = 10 * 60 * 1000; 
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
@@ -52,14 +55,46 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
+
+  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, resetInactivityTimer);
+  });
+  resetInactivityTimer(); 
 };
+
+function lockSystem() {
+  sessionStorage.removeItem('systemUnlocked');
+  sessionStorage.removeItem('currentRole');
+  currentRole = null;
+  updateLogoutButton();
+  
+  switchTab('checkout'); 
+  
+  document.getElementById('systemLoginModal').style.display = 'flex';
+  document.getElementById('roleLoginModal').style.display = 'none';
+  document.getElementById('sysPwdInput').value = "";
+  document.getElementById('rolePwdInput').value = "";
+}
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  if (sessionStorage.getItem('systemUnlocked')) {
+    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    lockSystem();
+  }
+});
 
 function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
+    resetInactivityTimer(); 
   } else {
-    // 💡 修正錯誤提示，不出現「統編」字眼
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
   }
@@ -119,8 +154,9 @@ function initCheckoutTime() {
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
+// 💡 更新：只攔截「分潤與薪水報表」，開放「店務與對帳報表」給所有人
 function switchTab(tabName) {
-  if ((tabName === 'report' || tabName === 'commission') && !currentRole) {
+  if (tabName === 'commission' && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
     document.getElementById('roleLoginModal').dataset.targetTab = tabName;
     return;
@@ -304,8 +340,9 @@ function getWeekBoundaries(baseDate) {
   return { startOfWeek, endOfWeek };
 }
 
+// 💡 更新：移除卡片點擊的權限攔截，讓大家都能自由篩選報表
 function toggleTechFilter(techName) {
-  if (techName === "全店金流" || currentRole !== 'admin') return; 
+  if (techName === "全店金流") return; 
   if (currentTechFilter === techName) currentTechFilter = null; 
   else currentTechFilter = techName; 
   processReportData(currentFilter);
@@ -364,11 +401,8 @@ function loadReport(filterType) {
   }
 }
 
+// 💡 更新：移除第二頁報表的全部權限遮蔽，全面開放檢視與操作
 function processReportData(filterType) {
-  if (currentRole !== 'admin') {
-     currentTechFilter = currentRole; 
-  }
-
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
@@ -492,15 +526,10 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
-  if (currentRole === 'admin') {
-      cashFlowBox.style.display = "block";
-      archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
-      adminTools.style.display = "block";
-  } else {
-      cashFlowBox.style.display = "none";
-      archiveSection.style.display = "none";
-      adminTools.style.display = "none";
-  }
+  // 💡 完全開放第二頁報表的功能與面板
+  cashFlowBox.style.display = "block";
+  archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
+  adminTools.style.display = "block";
   
   let boxTitle = "💵 該區間現金流結算";
   cashFlowBox.querySelector("h4").innerText = `${boxTitle} (依收款方式統整拆解)`;
@@ -512,7 +541,14 @@ function processReportData(filterType) {
     <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
   `;
 
-  let displayTitle = currentRole === 'admin' ? `該區間全店結帳總額` : `專屬個人業績 (目前篩選: ${currentRole})`;
+  let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
+  if (filterType === 'week') {
+    const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
+    const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
+    displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) - ${currentTechFilter}` : `本週業績 (${startStr} ~ ${endStr})`;
+  } else if (filterType === 'customMonth') {
+    displayTitle = `指定月份業績 (${document.getElementById("customMonthFilter").value})`;
+  }
   
   document.getElementById("dashboardTotalTitle").innerText = displayTitle;
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
@@ -524,15 +560,9 @@ function processReportData(filterType) {
   summaryDiv.innerHTML = ""; 
 
   const storeCard = document.createElement("div");
-  if (currentRole === 'admin') {
-      storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
-      storeCard.onclick = () => toggleTechFilter("店面收支");
-      storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
-  } else {
-      storeCard.className = "report-card";
-      storeCard.style.cursor = "not-allowed";
-      storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount" style="color:#aaa;">*** (無權限)</span>`;
-  }
+  storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
+  storeCard.onclick = () => toggleTechFilter("店面收支");
+  storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
   summaryDiv.appendChild(storeCard);
   
   let teachersTotalRevenue = 0;
@@ -540,32 +570,20 @@ function processReportData(filterType) {
     if(t !== "店面收支") {
       teachersTotalRevenue += techRevenue[t];
       const card = document.createElement("div"); 
-      
-      if (currentRole === 'admin') {
-          card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
-          card.onclick = () => toggleTechFilter(t); 
-          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
-      } else if (currentRole === t) {
-          card.className = "report-card active-tech";
-          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
-      } else {
-          card.className = "report-card";
-          card.style.cursor = "not-allowed";
-          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount" style="color:#aaa;">*** (無權限)</span>`;
-      }
+      card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
+      card.onclick = () => toggleTechFilter(t); 
+      card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
       summaryDiv.appendChild(card);
     }
   });
   
-  if (currentRole === 'admin') {
-      const totalPerformanceCard = document.createElement("div");
-      totalPerformanceCard.className = "report-card";
-      totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
-      totalPerformanceCard.style.borderColor = "#F5DEB3";
-      totalPerformanceCard.style.cursor = "default"; 
-      totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
-      summaryDiv.appendChild(totalPerformanceCard);
-  }
+  const totalPerformanceCard = document.createElement("div");
+  totalPerformanceCard.className = "report-card";
+  totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
+  totalPerformanceCard.style.borderColor = "#F5DEB3";
+  totalPerformanceCard.style.cursor = "default"; 
+  totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
+  summaryDiv.appendChild(totalPerformanceCard);
 }
 
 async function executeArchive() {
@@ -615,6 +633,7 @@ async function executeArchive() {
 }
 
 window.toggleDailyTable = function(id) {
+  // 第三頁依然保有權限遮蔽
   if (currentRole !== 'admin' && !id.includes(currentRole)) return; 
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
