@@ -41,13 +41,32 @@ window.onload = () => {
 
 function initCheckoutTime() {
   const now = new Date();
-  const pad = num => String(num).padStart(2, '0');
-  const year = now.getFullYear();
-  const month = pad(now.getMonth() + 1);
-  const day = pad(now.getDate());
-  const hours = pad(now.getHours());
-  const minutes = pad(now.getMinutes());
-  const localISO = `${year}-${month}-${day}T${hours}:${minutes}`;
+  
+  const options = { 
+    timeZone: 'Asia/Taipei', 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit', 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false
+  };
+  
+  const formatter = new Intl.DateTimeFormat('en-US', options);
+  const parts = formatter.formatToParts(now);
+  
+  let year, month, day, hour, minute;
+  parts.forEach(p => {
+    if(p.type === 'year') year = p.value;
+    if(p.type === 'month') month = p.value;
+    if(p.type === 'day') day = p.value;
+    if(p.type === 'hour') hour = p.value;
+    if(p.type === 'minute') minute = p.value;
+  });
+  
+  if (hour === '24') hour = '00';
+  
+  const localISO = `${year}-${month}-${day}T${hour}:${minute}`;
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
@@ -79,7 +98,6 @@ function renderCategoryButtons() {
   }
 }
 
-// 💡 修正 1：在選取細項時，將大項分類 (category) 一併傳遞給購物車
 function renderSubItems(category) {
   const container = document.getElementById("subItemContainer");
   const grid = document.getElementById("subItemGrid");
@@ -89,13 +107,11 @@ function renderSubItems(category) {
     const price = subItems[subName];
     const btn = document.createElement("button"); btn.className = "btn-subitem";
     btn.innerText = `${subName} (${price === "*" ? "自訂" : "$" + price})`;
-    // 把 category 傳進去
     btn.onclick = () => addToCart(category, subName, price);
     grid.appendChild(btn);
   }
 }
 
-// 💡 修正 2：將傳進來的大項分類，寫入隱藏的 <input class="item-category"> 中
 function addToCart(category, itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -292,7 +308,6 @@ function loadReport(filterType) {
   }
 }
 
-// 💡 修正 3：產生報表時，優先讀取綁定好的分類 (i.category)
 function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
@@ -370,7 +385,6 @@ function processReportData(filterType) {
         let qty = parseInt(i.qty) || 1;
         let price = parseInt(i.price) || 0;
         let subtotal = Math.abs(price * qty);
-        // 優先讀取保存的 i.category，若無則啟動相容模式用舊方法找
         let category = i.category || getCategoryByItemName(i.item_name);
         let priceDisplay = (i.item_name.includes("抵扣")) ? `-$${subtotal}` : `$${subtotal}`;
         return `${category}＿${i.item_name} * ${qty} - (${priceDisplay}) (${i.technician})`;
@@ -704,11 +718,18 @@ function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height); 
 }
 
+// 💡 核心升級：全新交易單號產生邏輯 (年月日時分秒+隨機碼)，絕對不可能重複！
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
   
-  if (!currentOrderId) { currentOrderId = `F${Date.now()}`; }
+  const nowForId = new Date();
+  const p = num => String(num).padStart(2, '0');
+  const timeStr = `${nowForId.getFullYear()}${p(nowForId.getMonth()+1)}${p(nowForId.getDate())}${p(nowForId.getHours())}${p(nowForId.getMinutes())}${p(nowForId.getSeconds())}`;
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  // 強制每次點擊都產生全新單號
+  currentOrderId = `F${timeStr}${rand}`;
+  
   const memberName = document.getElementById("memberName").value.trim();
   document.getElementById("rcptOrderId").innerText = currentOrderId;
   document.getElementById("rcptTime").innerText = currentTimeString;
@@ -716,7 +737,6 @@ function preparePrintReceipt() {
   document.getElementById("rcptCashier").innerText = document.getElementById("cashier").value;
   const itemsBody = document.getElementById("rcptItemsBody"); itemsBody.innerHTML = "";
   
-  // 💡 修正 4：送出資料庫前，將隱藏的 category 一併打包
   document.querySelectorAll("#cartBody tr").forEach(row => {
     const sCategory = row.querySelector(".item-category").value;
     const sName = row.querySelector(".item-name").value; 
@@ -739,11 +759,13 @@ async function startCheckout() {
   if (document.querySelectorAll("#cartBody tr").length === 0) return alert("請至少新增一項明細！");
   let priceMissing = false; document.querySelectorAll(".item-price").forEach(input => { if(input.value === "") priceMissing = true; });
   if(priceMissing) return alert("有服務項目的金額尚未填寫，請確認後再結帳！");
-  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳時間不可為空！");
+  
+  if (!document.getElementById("checkoutDateTime").value) return alert("請確認結帳日期與時間不可為空！");
+  
   const cartTotal = parseInt(document.getElementById("totalAmount").innerText) || 0; let paymentSum = 0; let hasEmptyPayment = false;
   document.querySelectorAll(".pay-amount-input").forEach(input => { const amt = parseInt(input.value); if (isNaN(amt)) { hasEmptyPayment = true; } else { paymentSum += amt; } });
   if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
-  if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核貼金額後再進行結帳簽名。`);
+  if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
   const btn = document.getElementById("btnGenerate"); btn.disabled = true; btn.innerText = "處理收據排版中...";
   try { preparePrintReceipt(); const receiptTemplate = document.getElementById("printReceiptTemplate"); const draftCanvas = await html2canvas(receiptTemplate, { scale: 2, backgroundColor: "#ffffff" }); draftBase64Data = draftCanvas.toDataURL("image/jpeg", 0.8); document.getElementById("signatureModal").style.display = "flex"; btn.innerText = "等待顧客簽名..."; } catch (err) { alert("排版截圖發生錯誤，請重試！"); resetBtn(); }
 }
@@ -760,7 +782,6 @@ async function confirmSignature() {
 function submitToGAS() {
   document.getElementById("btnGenerate").innerText = "資料上傳雲端中，請稍候..."; const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => { 
-    // 💡 修正 5：將 category 綁定進 JSON 陣列中上傳給後台
     const sCategory = row.querySelector(".item-category").value;
     const sName = row.querySelector(".item-name").value; 
     let sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
