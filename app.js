@@ -4,12 +4,12 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
 // 💡 資安防護：密碼設定區
-const SYSTEM_PWD = "96831088"; // 第一層：系統密碼
+const SYSTEM_PWD = "96831088"; // 第一層：系統大門鎖
 const ROLE_PASSWORDS = {
-  "9683": "admin",      // 總管理員 (可看全部、歸檔、作廢)
-  "1111": "李家蓁",     // 個人密碼 
-  "1007": "呂函優",     // 更新個人密碼
-  "0505": "呂佩穎"      // 更新個人密碼
+  "9683": "admin",      // 總管理員
+  "1111": "李家蓁",     
+  "1007": "呂函優",     // 更新
+  "0505": "呂佩穎"      // 更新
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
@@ -154,8 +154,8 @@ function initCheckoutTime() {
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
-// 💡 更新：只攔截「分潤與薪水報表」，開放「店務與對帳報表」給所有人
 function switchTab(tabName) {
+  // 💡 只有 tab-commission 受到保護，report 不再攔截！
   if (tabName === 'commission' && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
     document.getElementById('roleLoginModal').dataset.targetTab = tabName;
@@ -340,7 +340,7 @@ function getWeekBoundaries(baseDate) {
   return { startOfWeek, endOfWeek };
 }
 
-// 💡 更新：移除卡片點擊的權限攔截，讓大家都能自由篩選報表
+// 💡 報表篩選全開：移除任何角色權限檢查
 function toggleTechFilter(techName) {
   if (techName === "全店金流") return; 
   if (currentTechFilter === techName) currentTechFilter = null; 
@@ -401,7 +401,7 @@ function loadReport(filterType) {
   }
 }
 
-// 💡 更新：移除第二頁報表的全部權限遮蔽，全面開放檢視與操作
+// 💡 報表邏輯全開：移除遮蔽功能，所有人都可以看見所有人的數字並執行作廢歸檔
 function processReportData(filterType) {
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
@@ -526,7 +526,7 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
-  // 💡 完全開放第二頁報表的功能與面板
+  // 💡 報表元件全開：任何人都能看到現金流、歸檔及作廢面板
   cashFlowBox.style.display = "block";
   archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
   adminTools.style.display = "block";
@@ -541,7 +541,7 @@ function processReportData(filterType) {
     <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
   `;
 
-  let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
+  let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間全店結帳總額`;
   if (filterType === 'week') {
     const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
     const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
