@@ -21,7 +21,7 @@
     .container { max-width: 900px; margin: auto; background: var(--container-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(92, 74, 61, 0.08); position: relative; }
     h1, h2, h3 { text-align: center; color: var(--text-dark); }
     
-    .nav-tabs { display: flex; justify-content: center; margin-bottom: 25px; gap: 10px; flex-wrap: wrap; }
+    .nav-tabs { display: flex; justify-content: center; align-items: center; margin-bottom: 25px; gap: 10px; flex-wrap: wrap; }
     .nav-tabs button { background: #EFE8DF; color: var(--text-dark); border: none; padding: 12px 25px; font-size: 1.1em; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
     .nav-tabs button.active { background: var(--primary-color); color: white; }
     .tab-content { display: none; }
@@ -114,7 +114,7 @@
 </head>
 <body>
 
-<!-- 💡 更新：移除「統編」字眼，提升隱蔽性 -->
+<!-- 第一層：進入系統的大門鎖 -->
 <div id="systemLoginModal" class="modal" style="background: var(--bg-color); z-index: 9999;">
   <div class="modal-content" style="text-align: center; padding: 40px 20px; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
     <h2 style="color: var(--primary-color);">🔒 潘朵拉美學院 POS</h2>
@@ -126,6 +126,7 @@
   </div>
 </div>
 
+<!-- 第二層：第三頁報表的專屬解鎖 -->
 <div id="roleLoginModal" class="modal" style="z-index: 3000;">
   <div class="modal-content" style="text-align: center; max-width: 400px;">
     <h2 style="color: var(--text-dark);">🔐 報表權限解鎖</h2>
@@ -138,13 +139,29 @@
   </div>
 </div>
 
+<!-- 💡 新增：自動登出前的溫馨提醒彈窗 -->
+<div id="timeoutWarningModal" class="modal" style="z-index: 4000;">
+  <div class="modal-content" style="text-align: center; max-width: 350px;">
+    <h2 style="color: var(--danger-color);">⏳ 閒置超時警告</h2>
+    <p style="color: #666; line-height: 1.6;">系統偵測到您已閒置一段時間。<br>為了保護報表隱私，系統將在 <br><span id="warningCountdown" style="color:red; font-weight:bold; font-size:2em;">02:00</span><br> 後自動登出報表權限。</p>
+    <div class="modal-btns" style="margin-top: 25px;">
+      <button class="btn-confirm" onclick="extendSession()" style="width: 100%; padding: 12px; font-size: 1.2em;">繼續使用 (重新計時)</button>
+    </div>
+  </div>
+</div>
+
 <div class="container">
   
   <div class="nav-tabs">
     <button id="tab-checkout" class="active" onclick="switchTab('checkout')">結帳作業</button>
     <button id="tab-report" onclick="switchTab('report')">店務與對帳報表</button>
     <button id="tab-commission" onclick="switchTab('commission')">📊 分潤與薪水報表</button>
-    <button id="btnLogoutRole" onclick="logoutRole()" style="display:none; background: var(--danger-color); color: white;">🔒 登出報表權限</button>
+    
+    <!-- 💡 更新：倒數計時器與登出按鈕並排 -->
+    <div id="roleControls" style="display:none; align-items:center; gap: 10px; padding-left: 15px; border-left: 2px solid var(--border-color);">
+      <span style="color: var(--danger-color); font-weight: bold; font-size: 0.9em;">權限時效 <span id="countdownDisplay">10:00</span></span>
+      <button id="btnLogoutRole" onclick="logoutRole()" style="background: var(--danger-color); color: white;">🔒 登出</button>
+    </div>
   </div>
 
   <div id="content-checkout" class="tab-content active">
