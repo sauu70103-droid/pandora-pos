@@ -3,6 +3,16 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
+// 💡 資安防護：密碼設定區 (你可以在這裡自由修改 4 位數密碼)
+const SYSTEM_PWD = "96831088"; // 第一層：公司統編
+const ROLE_PASSWORDS = {
+  "9683": "admin",      // 總管理員 (可看全部、歸檔、作廢)
+  "1111": "李家蓁",     // 個人密碼 (只能看自己的數字)
+  "2222": "呂函優",     // 個人密碼 (只能看自己的數字)
+  "3333": "呂佩穎"      // 個人密碼 (只能看自己的數字)
+};
+let currentRole = sessionStorage.getItem('currentRole') || null;
+
 let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
@@ -32,12 +42,72 @@ function getCategoryByItemName(itemName) {
 }
 
 window.onload = () => { 
+  // 💡 檢查第一層鎖 (是否輸入過統編)
+  if (!sessionStorage.getItem('systemUnlocked')) {
+    document.getElementById('systemLoginModal').style.display = 'flex';
+  }
+  
   initCheckoutTime();
   initCashierOptions(); 
   renderCategoryButtons(); 
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
+  updateLogoutButton();
 };
+
+// 💡 資安防護：密碼驗證邏輯
+function verifySystemPassword() {
+  if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
+    sessionStorage.setItem('systemUnlocked', 'true');
+    document.getElementById('systemLoginModal').style.display = 'none';
+  } else {
+    alert("❌ 系統密碼錯誤！請輸入正確的公司統編。");
+    document.getElementById('sysPwdInput').value = "";
+  }
+}
+
+function verifyRolePassword() {
+  const pwd = document.getElementById('rolePwdInput').value;
+  if (ROLE_PASSWORDS[pwd]) {
+    currentRole = ROLE_PASSWORDS[pwd];
+    sessionStorage.setItem('currentRole', currentRole);
+    document.getElementById('roleLoginModal').style.display = 'none';
+    document.getElementById('rolePwdInput').value = ""; 
+    updateLogoutButton();
+    const targetTab = document.getElementById('roleLoginModal').dataset.targetTab;
+    switchTab(targetTab); 
+  } else {
+    alert("❌ 密碼錯誤，權限不足！");
+    document.getElementById('rolePwdInput').value = "";
+  }
+}
+
+function closeRoleModal() {
+  document.getElementById('roleLoginModal').style.display = 'none';
+  document.getElementById('rolePwdInput').value = "";
+}
+
+function logoutRole() {
+  currentRole = null;
+  sessionStorage.removeItem('currentRole');
+  alert("🔒 已登出報表權限。");
+  updateLogoutButton();
+  switchTab('checkout');
+}
+
+function updateLogoutButton() {
+  const btn = document.getElementById('btnLogoutRole');
+  if (currentRole) {
+    btn.style.display = 'block';
+    btn.innerText = `🔒 登出 (${currentRole === 'admin' ? '管理員' : currentRole})`;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+// 支援按下 Enter 鍵解鎖
+document.getElementById('sysPwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifySystemPassword(); });
+document.getElementById('rolePwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifyRolePassword(); });
 
 function initCheckoutTime() {
   const now = new Date();
@@ -51,11 +121,19 @@ function initCheckoutTime() {
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
+// 💡 攔截 Tab 切換，檢查是否有第二層報表權限
 function switchTab(tabName) {
+  if ((tabName === 'report' || tabName === 'commission') && !currentRole) {
+    document.getElementById('roleLoginModal').style.display = 'flex';
+    document.getElementById('roleLoginModal').dataset.targetTab = tabName;
+    return;
+  }
+
   document.querySelectorAll('.nav-tabs button').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
   document.getElementById('tab-' + tabName).classList.add('active');
   document.getElementById('content-' + tabName).classList.add('active');
+  
   if (tabName === 'report') loadReport('today'); 
   if (tabName === 'commission') loadCommissions();
 }
@@ -230,7 +308,7 @@ function getWeekBoundaries(baseDate) {
 }
 
 function toggleTechFilter(techName) {
-  if (techName === "全店金流") return; 
+  if (techName === "全店金流" || currentRole !== 'admin') return; 
   if (currentTechFilter === techName) currentTechFilter = null; 
   else currentTechFilter = techName; 
   processReportData(currentFilter);
@@ -290,6 +368,11 @@ function loadReport(filterType) {
 }
 
 function processReportData(filterType) {
+  // 💡 動態遮蔽：如果不是管理員，強制將報表篩選為該名老師，不允許看全部
+  if (currentRole !== 'admin') {
+     currentTechFilter = currentRole; 
+  }
+
   const now = new Date();
   const pad = num => String(num).padStart(2, '0');
   const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
@@ -411,9 +494,19 @@ function processReportData(filterType) {
   const cashFlowBox = document.getElementById("cashFlowBox");
   const cashFlowGrid = document.getElementById("cashFlowGrid");
   const archiveSection = document.getElementById("archiveSection");
+  const adminTools = document.getElementById("adminTools");
 
-  cashFlowBox.style.display = "block";
-  archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
+  // 💡 動態遮蔽：隱藏管理員專屬功能
+  if (currentRole === 'admin') {
+      cashFlowBox.style.display = "block";
+      archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
+      adminTools.style.display = "block";
+  } else {
+      cashFlowBox.style.display = "none";
+      archiveSection.style.display = "none";
+      adminTools.style.display = "none";
+  }
+  
   let boxTitle = "💵 該區間現金流結算";
   cashFlowBox.querySelector("h4").innerText = `${boxTitle} (依收款方式統整拆解)`;
   cashFlowGrid.innerHTML = `
@@ -424,16 +517,10 @@ function processReportData(filterType) {
     <div class="cashflow-item">💎 儲值金<br><span style="color:var(--primary-hover);">NT$ ${cashFlow["儲值金"].toLocaleString()}</span></div>
   `;
 
-  let displayTitle = currentTechFilter ? `該區間結帳總額 (目前篩選: ${currentTechFilter})` : `該區間結帳總額 (已扣除作廢)`;
-  if (filterType === 'week') {
-    const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
-    const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
-    displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) - ${currentTechFilter}` : `本週業績 (${startStr} ~ ${endStr})`;
-  } else if (filterType === 'customMonth') {
-    displayTitle = `指定月份業績 (${document.getElementById("customMonthFilter").value})`;
-  }
+  let displayTitle = currentRole === 'admin' ? `該區間全店結帳總額` : `專屬個人業績 (目前篩選: ${currentRole})`;
   
   document.getElementById("dashboardTotalTitle").innerText = displayTitle;
+  // 如果是個人，filteredTotal 在上面會算出該老師個人的總額
   document.getElementById("dashboardTodayTotal").innerText = `NT$ ${filteredTotal.toLocaleString()}`;
 
   const detailedBody = document.getElementById("detailedReportBody");
@@ -442,10 +529,17 @@ function processReportData(filterType) {
   const summaryDiv = document.getElementById("reportSummary");
   summaryDiv.innerHTML = ""; 
 
+  // 💡 動態遮蔽：產生老師卡片時判斷權限
   const storeCard = document.createElement("div");
-  storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
-  storeCard.onclick = () => toggleTechFilter("店面收支");
-  storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
+  if (currentRole === 'admin') {
+      storeCard.className = "report-card" + (currentTechFilter === "店面收支" ? " active-tech" : "");
+      storeCard.onclick = () => toggleTechFilter("店面收支");
+      storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount">NT$ ${techRevenue["店面收支"].toLocaleString()}</span>`;
+  } else {
+      storeCard.className = "report-card";
+      storeCard.style.cursor = "not-allowed";
+      storeCard.innerHTML = `<span>🏦 店面收支 (定金/儲值/產品)</span> <span class="amount" style="color:#aaa;">*** (無權限)</span>`;
+  }
   summaryDiv.appendChild(storeCard);
   
   let teachersTotalRevenue = 0;
@@ -453,20 +547,32 @@ function processReportData(filterType) {
     if(t !== "店面收支") {
       teachersTotalRevenue += techRevenue[t];
       const card = document.createElement("div"); 
-      card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
-      card.onclick = () => toggleTechFilter(t); 
-      card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
+      
+      if (currentRole === 'admin') {
+          card.className = "report-card" + (currentTechFilter === t ? " active-tech" : "");
+          card.onclick = () => toggleTechFilter(t); 
+          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
+      } else if (currentRole === t) {
+          card.className = "report-card active-tech";
+          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount">NT$ ${techRevenue[t].toLocaleString()}</span>`;
+      } else {
+          card.className = "report-card";
+          card.style.cursor = "not-allowed";
+          card.innerHTML = `<span>👩‍💼 操作老師：${t}</span> <span class="amount" style="color:#aaa;">*** (無權限)</span>`;
+      }
       summaryDiv.appendChild(card);
     }
   });
   
-  const totalPerformanceCard = document.createElement("div");
-  totalPerformanceCard.className = "report-card";
-  totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
-  totalPerformanceCard.style.borderColor = "#F5DEB3";
-  totalPerformanceCard.style.cursor = "default"; 
-  totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
-  summaryDiv.appendChild(totalPerformanceCard);
+  if (currentRole === 'admin') {
+      const totalPerformanceCard = document.createElement("div");
+      totalPerformanceCard.className = "report-card";
+      totalPerformanceCard.style.backgroundColor = "#FDF5E6"; 
+      totalPerformanceCard.style.borderColor = "#F5DEB3";
+      totalPerformanceCard.style.cursor = "default"; 
+      totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
+      summaryDiv.appendChild(totalPerformanceCard);
+  }
 }
 
 async function executeArchive() {
@@ -515,8 +621,8 @@ async function executeArchive() {
   });
 }
 
-// 💡 點擊觸發每日明細表展開/收合
 window.toggleDailyTable = function(id) {
+  if (currentRole !== 'admin' && !id.includes(currentRole)) return; // 防呆：不能點開別人的
   const el = document.getElementById(id);
   const arrow = document.getElementById('arrow-' + id);
   if (el.style.display === 'none') {
@@ -559,14 +665,12 @@ function renderCommissions(monthVal) {
   const [yyyy, mm] = monthVal.split('-');
   const targetPrefix = `${yyyy}-${mm}`; 
 
-  // 取得當月總天數 (例如 8月會有 31 天)
   const daysInMonth = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
 
   let techStats = {};
   technicians.forEach(t => {
      if(t !== "店面收支") {
        techStats[t] = { rev: 0, comm: 0, daily: {} };
-       // 💡 初始化當月 1~31 每一天的資料結構，預設為 0
        for(let d = 1; d <= daysInMonth; d++) {
          const dayStr = String(d).padStart(2, '0');
          techStats[t].daily[`${yyyy}-${mm}-${dayStr}`] = { rev: 0, comm: 0 };
@@ -575,9 +679,9 @@ function renderCommissions(monthVal) {
   });
 
   allCommissionData.forEach(row => {
-     const rawDateStr = row['消費日期']; // 可能是 "2026-08-07 17:38" 或 "2026-08-07"
+     const rawDateStr = row['消費日期']; 
      if (rawDateStr && rawDateStr.startsWith(targetPrefix)) {
-        const dateOnly = rawDateStr.split(' ')[0]; // 只擷取日期部分
+        const dateOnly = rawDateStr.split(' ')[0]; 
         const t = row['操作老師'];
         if (techStats[t]) {
            const rev = parseFloat(row['消費金額']) || 0;
@@ -601,7 +705,23 @@ function renderCommissions(monthVal) {
      if (techStats[t].rev !== 0 || techStats[t].comm !== 0) {
         hasData = true;
 
-        // 💡 產生隱藏的當月每一天日曆明細表
+        // 💡 動態遮蔽：判斷是否為其他老師
+        if (currentRole !== 'admin' && currentRole !== t) {
+            html += `
+              <div class="report-card" style="margin-bottom: 15px; cursor: not-allowed; background:#f5f5f5;">
+                <div style="flex:1;">
+                   <div style="font-size: 1.2em; font-weight:bold; color:#aaa; margin-bottom: 8px;">👩‍💼 ${t}</div>
+                   <div style="font-size: 0.9em; color:#aaa;">總操作業績：***</div>
+                </div>
+                <div style="flex:1; text-align:right;">
+                   <div style="font-size: 0.9em; color:#aaa;">結算應發分潤</div>
+                   <div style="font-size: 1.5em; font-weight:bold; color:#aaa;">*** (無權限)</div>
+                </div>
+              </div>
+            `;
+            continue;
+        }
+
         let dailyTableHTML = `
           <div id="daily-${t}" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             <table class="detailed-table" style="width: 100%; font-size: 0.9em;">
@@ -620,7 +740,6 @@ function renderCommissions(monthVal) {
            const fullDate = `${yyyy}-${mm}-${dayStr}`;
            const dailyData = techStats[t].daily[fullDate];
 
-           // 如果當天掛蛋，則顏色反灰；如果有業績則加粗突顯
            const revDisplay = dailyData.rev === 0 ? `<span style="color:#bbb;">$0</span>` : `<strong>$${dailyData.rev.toLocaleString()}</strong>`;
            const commDisplay = dailyData.comm === 0 ? `<span style="color:#bbb;">$0</span>` : `<strong style="color:var(--success-color);">$${Math.round(dailyData.comm).toLocaleString()}</strong>`;
            const rowStyle = dailyData.rev === 0 ? `background-color: #fafafa;` : ``;
@@ -636,7 +755,6 @@ function renderCommissions(monthVal) {
 
         dailyTableHTML += `</tbody></table></div>`;
 
-        // 💡 組合卡片與明細表，並加上 onclick 展開事件
         html += `
           <div class="report-card" style="margin-bottom: 15px; cursor: pointer; flex-direction: column; align-items: stretch;" onclick="toggleDailyTable('daily-${t}')">
             <div style="display: flex; justify-content: space-between; align-items: center;">
