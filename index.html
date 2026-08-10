@@ -114,19 +114,45 @@
 </head>
 <body>
 
+<!-- 💡 新增：第一層資安防護網 (系統登入) -->
+<div id="systemLoginModal" class="modal" style="background: var(--bg-color); z-index: 9999;">
+  <div class="modal-content" style="text-align: center; padding: 40px 20px; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+    <h2 style="color: var(--primary-color);">🔒 潘朵拉美學院 POS</h2>
+    <p style="color: #666; margin-bottom: 20px;">請輸入公司統編解鎖結帳系統</p>
+    <input type="password" id="sysPwdInput" placeholder="請輸入統編" style="text-align:center; font-size:1.5em; letter-spacing: 5px; font-weight: bold;">
+    <div class="modal-btns" style="margin-top: 25px;">
+      <button class="btn-confirm" onclick="verifySystemPassword()" style="width: 100%; padding: 12px; font-size: 1.2em;">進入系統</button>
+    </div>
+  </div>
+</div>
+
+<!-- 💡 新增：第二層隱私防護網 (報表權限解鎖) -->
+<div id="roleLoginModal" class="modal" style="z-index: 3000;">
+  <div class="modal-content" style="text-align: center; max-width: 400px;">
+    <h2 style="color: var(--text-dark);">🔐 報表權限解鎖</h2>
+    <p style="color: #666;">請輸入管理員或個人專屬密碼</p>
+    <input type="password" id="rolePwdInput" placeholder="請輸入密碼" style="text-align:center; font-size:1.5em; letter-spacing: 5px; font-weight: bold;">
+    <div class="modal-btns" style="margin-top: 25px; display: flex; gap: 10px;">
+      <button class="btn-clear" onclick="closeRoleModal()" style="flex: 1;">取消</button>
+      <button class="btn-confirm" onclick="verifyRolePassword()" style="flex: 1;">解鎖</button>
+    </div>
+  </div>
+</div>
+
 <div class="container">
   
   <div class="nav-tabs">
     <button id="tab-checkout" class="active" onclick="switchTab('checkout')">結帳作業</button>
     <button id="tab-report" onclick="switchTab('report')">店務與對帳報表</button>
     <button id="tab-commission" onclick="switchTab('commission')">📊 分潤與薪水報表</button>
+    <!-- 💡 登出按鈕 (隱藏，解鎖後顯示) -->
+    <button id="btnLogoutRole" onclick="logoutRole()" style="display:none; background: var(--danger-color); color: white;">🔒 登出報表權限</button>
   </div>
 
   <div id="content-checkout" class="tab-content active">
     <div>
       <h1>數位 POS 結帳單</h1>
       <div class="form-group">
-        <!-- 💡 完美回歸：改回單一 datetime-local，找回你最習慣的滾動版面 -->
         <div><label>結帳時間 (可修改補登)</label><input type="datetime-local" id="checkoutDateTime" required></div>
         <div><label>會員名稱</label><input type="text" id="memberName" placeholder="輸入顧客姓名" required></div>
         <div><label>手機號碼</label><input type="tel" id="memberPhone" placeholder="09xxxxxxxx" required></div>
@@ -185,7 +211,7 @@
 
   <div id="content-report" class="tab-content">
     <div class="dashboard-highlight">
-      <h3 id="dashboardTotalTitle">該區間結帳總額 (已扣除作廢)</h3>
+      <h3 id="dashboardTotalTitle">該區間結帳總額</h3>
       <p class="big-number" id="dashboardTodayTotal">NT$ 0</p>
     </div>
 
@@ -233,7 +259,7 @@
       <button class="btn-archive" onclick="executeArchive()">📁 確認無誤，執行分潤拆解歸檔</button>
     </div>
 
-    <div class="admin-tools">
+    <div class="admin-tools" id="adminTools" style="display:none;">
       <h3>⚠️ 單據作廢與調整</h3>
       <div class="admin-btns" style="justify-content: center; display: flex;">
         <button onclick="openVoidModal()">📅 開啟單據查詢與作廢面板</button>
@@ -252,6 +278,7 @@
 
 </div>
 
+<!-- 簽名與作廢視窗 -->
 <div id="signatureModal" class="modal">
   <div class="modal-content" style="text-align: center;">
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
