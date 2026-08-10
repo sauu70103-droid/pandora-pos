@@ -3,6 +3,7 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
+// 💡 資安防護：密碼設定區
 const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
@@ -12,16 +13,17 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-let inactivityTimer;
-const INACTIVITY_LIMIT = 10 * 60 * 1000; 
-const WARNING_LIMIT = 2 * 60 * 1000;    
+// 💡 修正：只保留針對報表的倒數計時器
+let lastActivityTime = Date.now();
+let countdownInterval;
+const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
+const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
 
 let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-// 💡 新增：防連點、防重複送單的安全鎖定變數
 let isSubmitting = false;
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
@@ -58,37 +60,73 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
-
-  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, resetInactivityTimer);
-  });
-  resetInactivityTimer(); 
+  
+  initIdleTimer(); 
 };
 
-function lockSystem() {
-  sessionStorage.removeItem('systemUnlocked');
-  sessionStorage.removeItem('currentRole');
-  currentRole = null;
-  updateLogoutButton();
-  
-  switchTab('checkout'); 
-  
-  document.getElementById('systemLoginModal').style.display = 'flex';
-  document.getElementById('roleLoginModal').style.display = 'none';
-  document.getElementById('sysPwdInput').value = "";
-  document.getElementById('rolePwdInput').value = "";
+// 💡 修正：乾淨純粹的計時器，只負責第三頁的權限
+function initIdleTimer() {
+  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      lastActivityTime = Date.now();
+      if(document.getElementById('timeoutWarningModal').style.display === 'flex') {
+         extendSession();
+      }
+    });
+  });
+  countdownInterval = setInterval(checkIdleTime, 1000);
 }
 
-function resetInactivityTimer() {
-  clearTimeout(inactivityTimer);
-  if (sessionStorage.getItem('systemUnlocked')) {
-    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
+function checkIdleTime() {
+  if (!currentRole) return; // 沒有登入第三頁就不需要倒數
+
+  const idleTime = Date.now() - lastActivityTime;
+  const remaining = INACTIVITY_LIMIT - idleTime;
+
+  // 時間到！強制登出第三層報表權限
+  if (remaining <= 0) {
+    lockRoleAuth();
+    return;
+  }
+
+  const mins = Math.floor(remaining / 60000).toString().padStart(2, '0');
+  const secs = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
+  const displayStr = `${mins}:${secs}`;
+  
+  document.getElementById('countdownDisplay').innerText = displayStr;
+
+  if (remaining <= WARNING_LIMIT) {
+    document.getElementById('timeoutWarningModal').style.display = 'flex';
+    document.getElementById('warningCountdown').innerText = displayStr;
+  } else {
+    document.getElementById('timeoutWarningModal').style.display = 'none';
   }
 }
 
+window.extendSession = function() {
+  lastActivityTime = Date.now();
+  document.getElementById('timeoutWarningModal').style.display = 'none';
+  checkIdleTime(); 
+};
+
+// 💡 修正：只鎖定第三層報表權限，絕對不會把第一層(統編)登出
+function lockRoleAuth() {
+  currentRole = null;
+  sessionStorage.removeItem('currentRole');
+  document.getElementById('timeoutWarningModal').style.display = 'none';
+  updateLogoutButton();
+  
+  const activeTab = document.querySelector('.nav-tabs button.active');
+  if (activeTab && activeTab.id === 'tab-commission') {
+     switchTab('checkout');
+     alert("⏳ 閒置時間過長，已自動登出報表權限以保護隱私。");
+  }
+}
+
+// 💡 修正：網頁縮小時，也只會登出報表權限
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    lockSystem();
+  if (document.hidden && currentRole) {
+    lockRoleAuth();
   }
 });
 
@@ -96,7 +134,6 @@ function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
-    resetInactivityTimer(); 
   } else {
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
@@ -606,7 +643,6 @@ function processReportData(filterType) {
   summaryDiv.appendChild(totalPerformanceCard);
 }
 
-// 💡 歸檔防呆：加入 isSubmitting 鎖
 async function executeArchive() {
   if (isSubmitting) return;
 
@@ -962,7 +998,7 @@ function preparePrintReceipt() {
 }
 
 async function startCheckout() {
-  if (isSubmitting) return; // 💡 防連點保護
+  if (isSubmitting) return;
 
   const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
   const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
@@ -994,16 +1030,15 @@ async function startCheckout() {
   }
 }
 
-// 💡 結帳送單防呆：加入 isSubmitting 鎖與全螢幕遮罩
 async function confirmSignature() {
   if (isSubmitting) return;
 
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
   
-  isSubmitting = true; // 上鎖，拒絕後續點擊
+  isSubmitting = true; 
   document.getElementById("signatureModal").style.display = "none"; 
-  document.getElementById("globalLoader").style.display = "flex"; // 啟動全螢幕防護罩
+  document.getElementById("globalLoader").style.display = "flex"; 
   document.getElementById("btnGenerate").innerText = "最終排版產生中...";
   
   const sigImg = document.getElementById("rcptSignatureImg"); 
@@ -1044,8 +1079,8 @@ function submitToGAS() {
     resetBtn(); 
   })
   .finally(() => {
-    isSubmitting = false; // 解開鎖定
-    document.getElementById("globalLoader").style.display = "none"; // 關閉遮罩
+    isSubmitting = false; 
+    document.getElementById("globalLoader").style.display = "none"; 
   });
 }
 
