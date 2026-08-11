@@ -3,8 +3,8 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區
-const SYSTEM_PWD = "96831088"; 
+// 💡 資安防護：密碼設定區 (未來只調整這裡的數字，絕對不動邏輯)
+const SYSTEM_PWD = "96831088"; // 第一階段：系統大門鎖 (不會自動登出)
 const ROLE_PASSWORDS = {
   "9683": "admin",      
   "1111": "李家蓁",     
@@ -13,7 +13,9 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-let inactivityTimer;
+// 💡 第二階段專屬：自動倒數計時器參數 (只針對第三頁)
+let lastActivityTime = Date.now();
+let countdownInterval;
 const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
 const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
 
@@ -22,11 +24,10 @@ let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-let isSubmitting = false;
+let isSubmitting = false; // 防重複送單安全鎖
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
-// 💡 更新：在定金及加費分類中，新增「活動抵扣」與「自由抵扣」
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
@@ -49,6 +50,7 @@ function getCategoryByItemName(itemName) {
 }
 
 window.onload = () => { 
+  // 檢查第一階段是否解鎖
   if (!sessionStorage.getItem('systemUnlocked')) {
     document.getElementById('systemLoginModal').style.display = 'flex';
   }
@@ -59,37 +61,76 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
-
-  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, resetInactivityTimer);
-  });
-  resetInactivityTimer(); 
+  
+  initIdleTimer(); 
 };
 
-function lockSystem() {
-  sessionStorage.removeItem('systemUnlocked');
-  sessionStorage.removeItem('currentRole');
-  currentRole = null;
-  updateLogoutButton();
-  
-  switchTab('checkout'); 
-  
-  document.getElementById('systemLoginModal').style.display = 'flex';
-  document.getElementById('roleLoginModal').style.display = 'none';
-  document.getElementById('sysPwdInput').value = "";
-  document.getElementById('rolePwdInput').value = "";
+// ==========================================
+// 💡 權限與資安邏輯區 (強制寫死，絕不輕易登出第一層)
+// ==========================================
+
+function initIdleTimer() {
+  ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      lastActivityTime = Date.now();
+      if(document.getElementById('timeoutWarningModal').style.display === 'flex') {
+         extendSession();
+      }
+    });
+  });
+  countdownInterval = setInterval(checkIdleTime, 1000);
 }
 
-function resetInactivityTimer() {
-  clearTimeout(inactivityTimer);
-  if (sessionStorage.getItem('systemUnlocked')) {
-    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
+function checkIdleTime() {
+  // 只有在登入第三頁(分潤報表)時，才需要倒數
+  if (!currentRole) return; 
+
+  const idleTime = Date.now() - lastActivityTime;
+  const remaining = INACTIVITY_LIMIT - idleTime;
+
+  if (remaining <= 0) {
+    lockRoleAuth(); // 時間到，只鎖定第三頁權限
+    return;
+  }
+
+  const mins = Math.floor(remaining / 60000).toString().padStart(2, '0');
+  const secs = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
+  const displayStr = `${mins}:${secs}`;
+  
+  document.getElementById('countdownDisplay').innerText = displayStr;
+
+  if (remaining <= WARNING_LIMIT) {
+    document.getElementById('timeoutWarningModal').style.display = 'flex';
+    document.getElementById('warningCountdown').innerText = displayStr;
+  } else {
+    document.getElementById('timeoutWarningModal').style.display = 'none';
   }
 }
 
+window.extendSession = function() {
+  lastActivityTime = Date.now();
+  document.getElementById('timeoutWarningModal').style.display = 'none';
+  checkIdleTime(); 
+};
+
+// 💡 核心保證：只清除 currentRole，絕對不碰 systemUnlocked！
+function lockRoleAuth() {
+  currentRole = null;
+  sessionStorage.removeItem('currentRole');
+  document.getElementById('timeoutWarningModal').style.display = 'none';
+  updateLogoutButton();
+  
+  const activeTab = document.querySelector('.nav-tabs button.active');
+  if (activeTab && activeTab.id === 'tab-commission') {
+     switchTab('checkout');
+     alert("⏳ 閒置時間過長或切換畫面，已自動登出報表權限以保護隱私。");
+  }
+}
+
+// 網頁縮小或切換分頁時，也只針對第三頁權限生效
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    lockSystem();
+  if (document.hidden && currentRole) {
+    lockRoleAuth();
   }
 });
 
@@ -97,7 +138,6 @@ function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
-    resetInactivityTimer(); 
   } else {
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
@@ -148,22 +188,18 @@ function updateLogoutButton() {
 document.getElementById('sysPwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifySystemPassword(); });
 document.getElementById('rolePwdInput').addEventListener('keyup', function(e) { if (e.key === 'Enter') verifyRolePassword(); });
 
+// ==========================================
+// 結帳與購物車介面邏輯
+// ==========================================
+
 function initCheckoutTime() {
   const now = new Date();
-  
   const options = { 
-    timeZone: 'Asia/Taipei', 
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit', 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: false
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', 
+    hour: '2-digit', minute: '2-digit', hour12: false
   };
-  
   const formatter = new Intl.DateTimeFormat('en-US', options);
   const parts = formatter.formatToParts(now);
-  
   let year, month, day, hour, minute;
   parts.forEach(p => {
     if(p.type === 'year') year = p.value;
@@ -172,14 +208,13 @@ function initCheckoutTime() {
     if(p.type === 'hour') hour = p.value;
     if(p.type === 'minute') minute = p.value;
   });
-  
   if (hour === '24') hour = '00';
-  
   const localISO = `${year}-${month}-${day}T${hour}:${minute}`;
   document.getElementById('checkoutDateTime').value = localISO;
 }
 
 function switchTab(tabName) {
+  // 💡 只有 tab-commission(第三頁) 需要權限，其他直接放行
   if (tabName === 'commission' && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
     document.getElementById('roleLoginModal').dataset.targetTab = tabName;
@@ -345,6 +380,10 @@ function getFinalPaymentString() {
   });
   return paymentParts.join(", ");
 }
+
+// ==========================================
+// 報表與對帳邏輯 (第二頁，100% 全面開放)
+// ==========================================
 
 let allReportData = []; 
 let currentFilter = 'today';
@@ -548,6 +587,7 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
+  // 💡 報表元件全開：任何人都能看到現金流、歸檔及作廢面板
   cashFlowBox.style.display = "block";
   archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
   adminTools.style.display = "block";
@@ -660,6 +700,57 @@ async function executeArchive() {
     archiveBtn.innerText = "📁 確認無誤，執行分潤薪水拆解歸檔";
   });
 }
+
+function openVoidModal() {
+  document.getElementById("voidModal").style.display = "flex";
+  document.getElementById("voidQueryDate").value = new Date().toISOString().split('T')[0];
+  document.getElementById("voidListContainer").innerHTML = '<p style="text-align:center; color:#888;">請點選右上方「查詢單據」載入紀錄...</p>';
+}
+
+function fetchVoidList() {
+  const targetDateStr = document.getElementById("voidQueryDate").value;
+  if (!targetDateStr) return alert("請先選擇日期！");
+  const container = document.getElementById("voidListContainer");
+  container.innerHTML = "<p style='text-align:center;'>資料讀取中，請稍候...</p>";
+  const reqMonth = targetDateStr.split("-")[1];
+  fetch(GAS_URL + "?month=" + reqMonth)
+    .then(res => res.json())
+    .then(res => {
+      if(res.status === "success") {
+        container.innerHTML = ""; let hasData = false;
+        res.data.forEach(row => {
+          if (row["收據明細狀態"] === "作廢") return; 
+          const rawTimeStr = String(row["結帳時間"]);
+          let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
+          if (isNaN(rowDateObj.getTime())) return;
+          const pad = num => String(num).padStart(2, '0');
+          const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
+          if (rowDateStr === targetDateStr) {
+            hasData = true;
+            const div = document.createElement("div");
+            div.style.cssText = "border: 1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:6px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
+            div.innerHTML = `<div><strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br><span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span></div><div><button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button></div>`;
+            container.appendChild(div);
+          }
+        });
+        if(!hasData) container.innerHTML = "<p style='text-align:center; padding:20px; color:#999;'>該日目前沒有可以作廢的正常單據</p>";
+      }
+    });
+}
+
+function executeVoid(orderId, checkoutTime) {
+  if (!confirm(`確定要作廢這筆單據嗎？作廢後業績將歸零，並無法再撤銷！`)) return;
+  const container = document.getElementById("voidListContainer");
+  container.innerHTML = "<p style='text-align:center; font-weight:bold; color:var(--danger-color);'>作廢處理中，請勿關閉視窗...</p>";
+  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "void", order_id: orderId, checkout_time: checkoutTime }) })
+  .then(res => res.json())
+  .then(result => { alert("作廢成功！系統將自動刷新帳務..."); allReportData = []; loadedMonthStr = ""; fetchVoidList(); loadReport(currentFilter); })
+  .catch(err => alert("處理失敗請確認網路後重試"));
+}
+
+// ==========================================
+// 分潤與薪水報表邏輯 (第三頁，嚴格保護)
+// ==========================================
 
 window.toggleDailyTable = function(id) {
   if (currentRole !== 'admin' && !id.includes(currentRole)) return; 
@@ -819,52 +910,9 @@ function renderCommissions(monthVal) {
   summaryDiv.innerHTML = html;
 }
 
-function openVoidModal() {
-  document.getElementById("voidModal").style.display = "flex";
-  document.getElementById("voidQueryDate").value = new Date().toISOString().split('T')[0];
-  document.getElementById("voidListContainer").innerHTML = '<p style="text-align:center; color:#888;">請點選右上方「查詢單據」載入紀錄...</p>';
-}
-
-function fetchVoidList() {
-  const targetDateStr = document.getElementById("voidQueryDate").value;
-  if (!targetDateStr) return alert("請先選擇日期！");
-  const container = document.getElementById("voidListContainer");
-  container.innerHTML = "<p style='text-align:center;'>資料讀取中，請稍候...</p>";
-  const reqMonth = targetDateStr.split("-")[1];
-  fetch(GAS_URL + "?month=" + reqMonth)
-    .then(res => res.json())
-    .then(res => {
-      if(res.status === "success") {
-        container.innerHTML = ""; let hasData = false;
-        res.data.forEach(row => {
-          if (row["收據明細狀態"] === "作廢") return; 
-          const rawTimeStr = String(row["結帳時間"]);
-          let rowDateObj = new Date(rawTimeStr.replace(/-/g, '/'));
-          if (isNaN(rowDateObj.getTime())) return;
-          const pad = num => String(num).padStart(2, '0');
-          const rowDateStr = `${rowDateObj.getFullYear()}-${pad(rowDateObj.getMonth()+1)}-${pad(rowDateObj.getDate())}`;
-          if (rowDateStr === targetDateStr) {
-            hasData = true;
-            const div = document.createElement("div");
-            div.style.cssText = "border: 1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:6px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
-            div.innerHTML = `<div><strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br><span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span></div><div><button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button></div>`;
-            container.appendChild(div);
-          }
-        });
-        if(!hasData) container.innerHTML = "<p style='text-align:center; padding:20px; color:#999;'>該日目前沒有可以作廢的正常單據</p>";
-      }
-    });
-}
-
-function executeVoid(orderId, checkoutTime) {
-  if (!confirm(`確定要作廢這筆單據嗎？作廢後業績將歸零，並無法再撤銷！`)) return;
-  const container = document.getElementById("voidListContainer");
-  container.innerHTML = "<p style='text-align:center; font-weight:bold; color:var(--danger-color);'>作廢處理中，請勿關閉視窗...</p>";
-  fetch(GAS_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ action: "void", order_id: orderId, checkout_time: checkoutTime }) })
-  .then(res => res.json())
-  .then(result => { alert("作廢成功！系統將自動刷新帳務..."); allReportData = []; loadedMonthStr = ""; fetchVoidList(); loadReport(currentFilter); })
-  .catch(err => alert("處理失敗請確認網路後重試"));
-}
+// ==========================================
+// 簽名板與送單邏輯 (包含防連點保護)
+// ==========================================
 
 const canvas = document.getElementById("sigCanvas"); 
 const ctx = canvas.getContext("2d"); 
