@@ -13,9 +13,7 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-// 💡 修正：只保留針對報表的倒數計時器
-let lastActivityTime = Date.now();
-let countdownInterval;
+let inactivityTimer;
 const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
 const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
 
@@ -28,6 +26,7 @@ let isSubmitting = false;
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
+// 💡 更新：在定金及加費分類中，新增「活動抵扣」與「自由抵扣」
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
@@ -39,7 +38,7 @@ const menuData = {
   "💧 卸甲": { "卸甲(他店續做)": 300, "卸甲(本店不續做)": 300, "卸甲(他店不續做)": 500, "卸甲(本店續做)": 200 },
   "🛍️ 產品": { "特殊甲產品-修甲套組": 1500, "特殊甲產品-防潮平衡液": 280, "特殊甲產品-BAOGAAO": 350, "特殊甲產品-灰指甲修護液": 980, "特殊甲產品-淨銀乳": 680, "特殊甲產品-磨板類": 40, "特殊甲產品-煥采抗菌噴霧": 480, "指緣修護油": 280, "指緣軟化液": 350, "鈣元素硬甲油": 375, "手足滋潤修護霜": 280 },
   "🪒 除毛": { "腋下": 400, "腳趾/手指": 250, "全背": 800, "小花": 300, "小腿": 800, "大腿": 800, "上手臂/小手臂": 700, "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299 },
-  "💰 定金及加費": { "定金": 500, "定金(抵扣)": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*" }
+  "💰 定金及加費": { "定金": 500, "定金(抵扣)": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*", "活動抵扣": "*", "自由抵扣": "*" }
 };
 
 function getCategoryByItemName(itemName) {
@@ -60,73 +59,37 @@ window.onload = () => {
   addPaymentRow();
   document.getElementById('commissionMonthSelector').value = new Date().toISOString().slice(0,7);
   updateLogoutButton();
-  
-  initIdleTimer(); 
-};
 
-// 💡 修正：乾淨純粹的計時器，只負責第三頁的權限
-function initIdleTimer() {
   ['click', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, () => {
-      lastActivityTime = Date.now();
-      if(document.getElementById('timeoutWarningModal').style.display === 'flex') {
-         extendSession();
-      }
-    });
+    document.addEventListener(evt, resetInactivityTimer);
   });
-  countdownInterval = setInterval(checkIdleTime, 1000);
-}
-
-function checkIdleTime() {
-  if (!currentRole) return; // 沒有登入第三頁就不需要倒數
-
-  const idleTime = Date.now() - lastActivityTime;
-  const remaining = INACTIVITY_LIMIT - idleTime;
-
-  // 時間到！強制登出第三層報表權限
-  if (remaining <= 0) {
-    lockRoleAuth();
-    return;
-  }
-
-  const mins = Math.floor(remaining / 60000).toString().padStart(2, '0');
-  const secs = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
-  const displayStr = `${mins}:${secs}`;
-  
-  document.getElementById('countdownDisplay').innerText = displayStr;
-
-  if (remaining <= WARNING_LIMIT) {
-    document.getElementById('timeoutWarningModal').style.display = 'flex';
-    document.getElementById('warningCountdown').innerText = displayStr;
-  } else {
-    document.getElementById('timeoutWarningModal').style.display = 'none';
-  }
-}
-
-window.extendSession = function() {
-  lastActivityTime = Date.now();
-  document.getElementById('timeoutWarningModal').style.display = 'none';
-  checkIdleTime(); 
+  resetInactivityTimer(); 
 };
 
-// 💡 修正：只鎖定第三層報表權限，絕對不會把第一層(統編)登出
-function lockRoleAuth() {
-  currentRole = null;
+function lockSystem() {
+  sessionStorage.removeItem('systemUnlocked');
   sessionStorage.removeItem('currentRole');
-  document.getElementById('timeoutWarningModal').style.display = 'none';
+  currentRole = null;
   updateLogoutButton();
   
-  const activeTab = document.querySelector('.nav-tabs button.active');
-  if (activeTab && activeTab.id === 'tab-commission') {
-     switchTab('checkout');
-     alert("⏳ 閒置時間過長，已自動登出報表權限以保護隱私。");
+  switchTab('checkout'); 
+  
+  document.getElementById('systemLoginModal').style.display = 'flex';
+  document.getElementById('roleLoginModal').style.display = 'none';
+  document.getElementById('sysPwdInput').value = "";
+  document.getElementById('rolePwdInput').value = "";
+}
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  if (sessionStorage.getItem('systemUnlocked')) {
+    inactivityTimer = setTimeout(lockSystem, INACTIVITY_LIMIT);
   }
 }
 
-// 💡 修正：網頁縮小時，也只會登出報表權限
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && currentRole) {
-    lockRoleAuth();
+  if (document.hidden) {
+    lockSystem();
   }
 });
 
@@ -134,6 +97,7 @@ function verifySystemPassword() {
   if (document.getElementById('sysPwdInput').value === SYSTEM_PWD) {
     sessionStorage.setItem('systemUnlocked', 'true');
     document.getElementById('systemLoginModal').style.display = 'none';
+    resetInactivityTimer(); 
   } else {
     alert("❌ 系統密碼錯誤！請輸入正確的密碼。");
     document.getElementById('sysPwdInput').value = "";
@@ -998,7 +962,7 @@ function preparePrintReceipt() {
 }
 
 async function startCheckout() {
-  if (isSubmitting) return;
+  if (isSubmitting) return; 
 
   const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
   const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
