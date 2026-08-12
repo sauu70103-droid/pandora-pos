@@ -13,7 +13,6 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-// 第二階段專屬：自動倒數計時器參數
 let lastActivityTime = Date.now();
 let countdownInterval;
 const INACTIVITY_LIMIT = 10 * 60 * 1000; 
@@ -24,7 +23,6 @@ let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-// 💡 強化版：防重複送單安全鎖
 let isSubmitting = false; 
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
@@ -66,7 +64,7 @@ window.onload = () => {
 };
 
 // ==========================================
-// 💡 權限與資安邏輯區 
+// 💡 權限與資安邏輯區
 // ==========================================
 
 function initIdleTimer() {
@@ -264,7 +262,6 @@ function addToCart(category, itemName, itemPrice) {
   const tr = document.createElement("tr");
   const currentCashier = document.getElementById("cashier").value;
   
-  // 💡 強制防呆：如果是「定金及加費」類別，預設老師直接變成「店面收支」
   let defaultTech = currentCashier;
   if (category === "💰 定金及加費") {
       defaultTech = "店面收支";
@@ -383,7 +380,7 @@ function getFinalPaymentString() {
 }
 
 // ==========================================
-// 報表與對帳邏輯 (第二頁，100% 全面開放)
+// 店務報表邏輯 (第二頁)
 // ==========================================
 
 let allReportData = []; 
@@ -647,7 +644,6 @@ function processReportData(filterType) {
   summaryDiv.appendChild(totalPerformanceCard);
 }
 
-// 💡 歸檔送單防呆：加入 isSubmitting 鎖與轉圈圈
 async function executeArchive() {
   if (isSubmitting) return;
 
@@ -750,7 +746,7 @@ function executeVoid(orderId, checkoutTime) {
 }
 
 // ==========================================
-// 分潤與薪水報表邏輯 (第三頁)
+// 分潤薪水報表邏輯 (第三頁)
 // ==========================================
 
 window.toggleDailyTable = function(id) {
@@ -767,7 +763,9 @@ window.toggleDailyTable = function(id) {
 };
 
 let allCommissionData = [];
+let loadedCommissionMonth = ""; // 💡 新增：紀錄目前已載入的薪水月份，避免重複抓取
 
+// 💡 修正：切換月份時精準發送該月參數
 function loadCommissions() {
   const monthVal = document.getElementById('commissionMonthSelector').value; 
   if (!monthVal) return;
@@ -775,14 +773,16 @@ function loadCommissions() {
   const loadingDiv = document.getElementById("loadingCommission");
   const summaryDiv = document.getElementById("commissionSummary");
 
-  if (allCommissionData.length === 0) {
+  // 只有在還沒抓過這個月份時，才去向後端發送請求
+  if (loadedCommissionMonth !== monthVal) {
     summaryDiv.innerHTML = "";
     loadingDiv.style.display = "block";
-    fetch(GAS_URL + "?action=get_commissions")
+    fetch(GAS_URL + "?action=get_commissions&month=" + monthVal)
       .then(res => res.json())
       .then(res => {
         if(res.status === "success") { 
           allCommissionData = res.data; 
+          loadedCommissionMonth = monthVal;
           renderCommissions(monthVal);
         }
         loadingDiv.style.display = "none";
@@ -800,7 +800,7 @@ function renderCommissions(monthVal) {
   const daysInMonth = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
 
   let techStats = {};
-  let totalOpRev = 0; // 全店純操作業績總和
+  let totalOpRev = 0; 
 
   technicians.forEach(t => {
      if(t !== "店面收支") {
@@ -808,7 +808,7 @@ function renderCommissions(monthVal) {
           rev: 0, 
           comm: 0, 
           daily: {},
-          categories: {} // 💡 新增：大項統計分類
+          categories: {} 
        };
        for(let d = 1; d <= daysInMonth; d++) {
          const dayStr = String(d).padStart(2, '0');
@@ -828,7 +828,6 @@ function renderCommissions(monthVal) {
         const member = row['消費會員'] || "未填寫";
         const dateOnly = rawDateStr.split(' ')[0]; 
 
-        // 💡 計算全店操作總業績 (排除產品與加費，且排除店面收支)
         if (cat !== '🛍️ 產品' && cat !== '💰 定金及加費' && t !== '店面收支') {
             totalOpRev += rev;
         }
@@ -842,7 +841,6 @@ function renderCommissions(monthVal) {
               techStats[t].daily[dateOnly].comm += comm;
            }
 
-           // 💡 寫入大項分類統計
            if (!techStats[t].categories[cat]) {
                let displayPct = (parseFloat(pct) * 100).toFixed(0) + '%';
                if (isNaN(parseFloat(pct))) displayPct = "-";
@@ -850,12 +848,11 @@ function renderCommissions(monthVal) {
            }
            techStats[t].categories[cat].rev += rev;
            techStats[t].categories[cat].comm += comm;
-           techStats[t].categories[cat].visitors.add(dateOnly + "_" + member); // 相同日期與人名只算一次
+           techStats[t].categories[cat].visitors.add(dateOnly + "_" + member); 
         }
      }
   });
 
-  // 💡 店長加給：將總操作業績的 1% 給呂函優
   if (techStats["呂函優"]) {
      const managerBonus = Math.round(totalOpRev * 0.01);
      techStats["呂函優"].comm += managerBonus;
@@ -863,13 +860,12 @@ function renderCommissions(monthVal) {
          rev: totalOpRev,
          comm: managerBonus,
          pct: "1%",
-         visitors: { size: "*" } // 人次顯示為星號
+         visitors: { size: "*" } 
      };
   }
 
   let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤薪水結算與每日明細</h3>`;
   
-  // 💡 顯示高管專屬：月度操作總業績額
   if (currentRole === 'admin' || currentRole === '李家蓁' || currentRole === '呂函優') {
       html += `
         <div class="dashboard-highlight" style="background:#8C7A6B; margin-bottom:20px;">
@@ -880,6 +876,10 @@ function renderCommissions(monthVal) {
   }
 
   let hasData = false;
+  
+  // 💡 建立強制大項排序的陣列依據
+  const categoryOrder = Object.keys(menuData);
+  categoryOrder.push("🌟 店長加給");
 
   for (const t in techStats) {
      if (techStats[t].rev !== 0 || techStats[t].comm !== 0) {
@@ -901,7 +901,6 @@ function renderCommissions(monthVal) {
             continue;
         }
 
-        // 💡 建立展開後的大項分類表格
         let innerHTML = `
           <div id="daily-${t}" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             
@@ -919,7 +918,16 @@ function renderCommissions(monthVal) {
               <tbody>
         `;
 
-        for (let catName in techStats[t].categories) {
+        // 💡 將該老師的大項依據標準菜單進行強制排序
+        const sortedCats = Object.keys(techStats[t].categories).sort((a, b) => {
+            let idxA = categoryOrder.indexOf(a);
+            let idxB = categoryOrder.indexOf(b);
+            if(idxA === -1) idxA = 999;
+            if(idxB === -1) idxB = 999;
+            return idxA - idxB;
+        });
+
+        for (let catName of sortedCats) {
            const cData = techStats[t].categories[catName];
            innerHTML += `
               <tr>
@@ -927,7 +935,7 @@ function renderCommissions(monthVal) {
                 <td>${cData.pct}</td>
                 <td>$${cData.rev.toLocaleString()}</td>
                 <td style="color:var(--success-color); font-weight:bold;">$${Math.round(cData.comm).toLocaleString()}</td>
-                <td>${cData.visitors.size}</td>
+                <td>${cData.visitors.size !== undefined ? cData.visitors.size : cData.visitors}</td>
               </tr>
            `;
         }
@@ -1060,7 +1068,7 @@ function preparePrintReceipt() {
 
 async function startCheckout() {
   const btn = document.getElementById("btnGenerate"); 
-  if (btn.disabled || isSubmitting) return; // 💡 物理阻擋重複點擊
+  if (btn.disabled || isSubmitting) return; 
 
   const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
   const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
@@ -1075,7 +1083,7 @@ async function startCheckout() {
   if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
   if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
   
-  isSubmitting = true; // 上鎖
+  isSubmitting = true; 
   btn.disabled = true; 
   btn.innerText = "處理收據排版中...";
   
@@ -1090,7 +1098,7 @@ async function startCheckout() {
     alert("排版截圖發生錯誤，請重試！"); 
     resetBtn(); 
   } finally {
-    isSubmitting = false; // 解鎖，讓使用者可以點擊確認簽名
+    isSubmitting = false; 
   }
 }
 
@@ -1102,7 +1110,7 @@ async function confirmSignature() {
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
   
-  isSubmitting = true; // 真正送單，徹底上鎖
+  isSubmitting = true; 
   if(confirmBtn) confirmBtn.disabled = true;
   
   document.getElementById("signatureModal").style.display = "none"; 
