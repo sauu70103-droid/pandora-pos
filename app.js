@@ -3,8 +3,8 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區 (未來只調整這裡的數字，絕對不動邏輯)
-const SYSTEM_PWD = "96831088"; // 第一階段：系統大門鎖 (不會自動登出)
+// 💡 資安防護：密碼設定區 
+const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
   "1111": "李家蓁",     
@@ -13,18 +13,19 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-// 💡 第二階段專屬：自動倒數計時器參數 (只針對第三頁)
+// 第二階段專屬：自動倒數計時器參數
 let lastActivityTime = Date.now();
 let countdownInterval;
-const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 分鐘
-const WARNING_LIMIT = 2 * 60 * 1000;    // 倒數 2 分鐘時跳出提醒
+const INACTIVITY_LIMIT = 10 * 60 * 1000; 
+const WARNING_LIMIT = 2 * 60 * 1000;    
 
 let draftBase64Data = "";
 let signedBase64Data = "";
 let currentOrderId = "";
 let currentTimeString = "";
 
-let isSubmitting = false; // 防重複送單安全鎖
+// 💡 強化版：防重複送單安全鎖
+let isSubmitting = false; 
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
@@ -50,7 +51,6 @@ function getCategoryByItemName(itemName) {
 }
 
 window.onload = () => { 
-  // 檢查第一階段是否解鎖
   if (!sessionStorage.getItem('systemUnlocked')) {
     document.getElementById('systemLoginModal').style.display = 'flex';
   }
@@ -66,7 +66,7 @@ window.onload = () => {
 };
 
 // ==========================================
-// 💡 權限與資安邏輯區 (強制寫死，絕不輕易登出第一層)
+// 💡 權限與資安邏輯區 
 // ==========================================
 
 function initIdleTimer() {
@@ -82,14 +82,13 @@ function initIdleTimer() {
 }
 
 function checkIdleTime() {
-  // 只有在登入第三頁(分潤報表)時，才需要倒數
   if (!currentRole) return; 
 
   const idleTime = Date.now() - lastActivityTime;
   const remaining = INACTIVITY_LIMIT - idleTime;
 
   if (remaining <= 0) {
-    lockRoleAuth(); // 時間到，只鎖定第三頁權限
+    lockRoleAuth(); 
     return;
   }
 
@@ -113,7 +112,6 @@ window.extendSession = function() {
   checkIdleTime(); 
 };
 
-// 💡 核心保證：只清除 currentRole，絕對不碰 systemUnlocked！
 function lockRoleAuth() {
   currentRole = null;
   sessionStorage.removeItem('currentRole');
@@ -127,7 +125,6 @@ function lockRoleAuth() {
   }
 }
 
-// 網頁縮小或切換分頁時，也只針對第三頁權限生效
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && currentRole) {
     lockRoleAuth();
@@ -214,7 +211,6 @@ function initCheckoutTime() {
 }
 
 function switchTab(tabName) {
-  // 💡 只有 tab-commission(第三頁) 需要權限，其他直接放行
   if (tabName === 'commission' && !currentRole) {
     document.getElementById('roleLoginModal').style.display = 'flex';
     document.getElementById('roleLoginModal').dataset.targetTab = tabName;
@@ -268,8 +264,14 @@ function addToCart(category, itemName, itemPrice) {
   const tr = document.createElement("tr");
   const currentCashier = document.getElementById("cashier").value;
   
+  // 💡 強制防呆：如果是「定金及加費」類別，預設老師直接變成「店面收支」
+  let defaultTech = currentCashier;
+  if (category === "💰 定金及加費") {
+      defaultTech = "店面收支";
+  }
+  
   const techOptions = technicians.map(t => {
-    const isSelected = (t === currentCashier) ? "selected" : "";
+    const isSelected = (t === defaultTech) ? "selected" : "";
     return `<option value="${t}" ${isSelected}>${t}</option>`;
   }).join('');
 
@@ -298,7 +300,6 @@ function addToCart(category, itemName, itemPrice) {
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); 
   
-  tr.querySelector(".item-tech").value = currentCashier;
   calculateTotal();
 }
 
@@ -587,7 +588,6 @@ function processReportData(filterType) {
   const archiveSection = document.getElementById("archiveSection");
   const adminTools = document.getElementById("adminTools");
 
-  // 💡 報表元件全開：任何人都能看到現金流、歸檔及作廢面板
   cashFlowBox.style.display = "block";
   archiveSection.style.display = (filterType === 'today' || filterType === 'custom') ? "block" : "none";
   adminTools.style.display = "block";
@@ -647,6 +647,7 @@ function processReportData(filterType) {
   summaryDiv.appendChild(totalPerformanceCard);
 }
 
+// 💡 歸檔送單防呆：加入 isSubmitting 鎖與轉圈圈
 async function executeArchive() {
   if (isSubmitting) return;
 
@@ -749,7 +750,7 @@ function executeVoid(orderId, checkoutTime) {
 }
 
 // ==========================================
-// 分潤與薪水報表邏輯 (第三頁，嚴格保護)
+// 分潤與薪水報表邏輯 (第三頁)
 // ==========================================
 
 window.toggleDailyTable = function(id) {
@@ -799,9 +800,16 @@ function renderCommissions(monthVal) {
   const daysInMonth = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
 
   let techStats = {};
+  let totalOpRev = 0; // 全店純操作業績總和
+
   technicians.forEach(t => {
      if(t !== "店面收支") {
-       techStats[t] = { rev: 0, comm: 0, daily: {} };
+       techStats[t] = { 
+          rev: 0, 
+          comm: 0, 
+          daily: {},
+          categories: {} // 💡 新增：大項統計分類
+       };
        for(let d = 1; d <= daysInMonth; d++) {
          const dayStr = String(d).padStart(2, '0');
          techStats[t].daily[`${yyyy}-${mm}-${dayStr}`] = { rev: 0, comm: 0 };
@@ -812,12 +820,20 @@ function renderCommissions(monthVal) {
   allCommissionData.forEach(row => {
      const rawDateStr = row['消費日期']; 
      if (rawDateStr && rawDateStr.startsWith(targetPrefix)) {
-        const dateOnly = rawDateStr.split(' ')[0]; 
+        const cat = row['消費大項'];
         const t = row['操作老師'];
+        const rev = parseFloat(row['消費金額']) || 0;
+        const comm = parseFloat(row['分潤金額']) || 0;
+        const pct = row['分潤%數'];
+        const member = row['消費會員'] || "未填寫";
+        const dateOnly = rawDateStr.split(' ')[0]; 
+
+        // 💡 計算全店操作總業績 (排除產品與加費，且排除店面收支)
+        if (cat !== '🛍️ 產品' && cat !== '💰 定金及加費' && t !== '店面收支') {
+            totalOpRev += rev;
+        }
+
         if (techStats[t]) {
-           const rev = parseFloat(row['消費金額']) || 0;
-           const comm = parseFloat(row['分潤金額']) || 0;
-           
            techStats[t].rev += rev;
            techStats[t].comm += comm;
            
@@ -825,11 +841,44 @@ function renderCommissions(monthVal) {
               techStats[t].daily[dateOnly].rev += rev;
               techStats[t].daily[dateOnly].comm += comm;
            }
+
+           // 💡 寫入大項分類統計
+           if (!techStats[t].categories[cat]) {
+               let displayPct = (parseFloat(pct) * 100).toFixed(0) + '%';
+               if (isNaN(parseFloat(pct))) displayPct = "-";
+               techStats[t].categories[cat] = { rev: 0, comm: 0, pct: displayPct, visitors: new Set() };
+           }
+           techStats[t].categories[cat].rev += rev;
+           techStats[t].categories[cat].comm += comm;
+           techStats[t].categories[cat].visitors.add(dateOnly + "_" + member); // 相同日期與人名只算一次
         }
      }
   });
 
+  // 💡 店長加給：將總操作業績的 1% 給呂函優
+  if (techStats["呂函優"]) {
+     const managerBonus = Math.round(totalOpRev * 0.01);
+     techStats["呂函優"].comm += managerBonus;
+     techStats["呂函優"].categories["🌟 店長加給"] = {
+         rev: totalOpRev,
+         comm: managerBonus,
+         pct: "1%",
+         visitors: { size: "*" } // 人次顯示為星號
+     };
+  }
+
   let html = `<h3 style="border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">${yyyy} 年 ${mm} 月 分潤薪水結算與每日明細</h3>`;
+  
+  // 💡 顯示高管專屬：月度操作總業績額
+  if (currentRole === 'admin' || currentRole === '李家蓁' || currentRole === '呂函優') {
+      html += `
+        <div class="dashboard-highlight" style="background:#8C7A6B; margin-bottom:20px;">
+          <h3 style="color:white; margin:0 0 5px 0;">月度操作總業績額 (不含產品及加費)</h3>
+          <p class="big-number" style="font-size:2em; margin:0;">NT$ ${totalOpRev.toLocaleString()}</p>
+        </div>
+      `;
+  }
+
   let hasData = false;
 
   for (const t in techStats) {
@@ -852,8 +901,42 @@ function renderCommissions(monthVal) {
             continue;
         }
 
-        let dailyTableHTML = `
+        // 💡 建立展開後的大項分類表格
+        let innerHTML = `
           <div id="daily-${t}" style="display: none; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
+            
+            <h4 style="margin: 5px 0 10px 0; color: var(--text-dark);">📊 大項分潤薪水結算</h4>
+            <table class="detailed-table" style="width: 100%; font-size: 0.9em; margin-bottom: 20px;">
+              <thead>
+                <tr>
+                  <th style="background-color: #E2D6C8;">消費大項</th>
+                  <th style="background-color: #E2D6C8;">分潤%數</th>
+                  <th style="background-color: #E2D6C8;">大項業績額</th>
+                  <th style="background-color: #E2D6C8;">分潤薪水</th>
+                  <th style="background-color: #E2D6C8;">會員人次</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        for (let catName in techStats[t].categories) {
+           const cData = techStats[t].categories[catName];
+           innerHTML += `
+              <tr>
+                <td style="text-align:left;">${catName}</td>
+                <td>${cData.pct}</td>
+                <td>$${cData.rev.toLocaleString()}</td>
+                <td style="color:var(--success-color); font-weight:bold;">$${Math.round(cData.comm).toLocaleString()}</td>
+                <td>${cData.visitors.size}</td>
+              </tr>
+           `;
+        }
+
+        innerHTML += `
+              </tbody>
+            </table>
+
+            <h4 style="margin: 5px 0 10px 0; color: var(--text-dark);">📅 每日分潤薪水明細</h4>
             <table class="detailed-table" style="width: 100%; font-size: 0.9em;">
               <thead>
                 <tr>
@@ -874,7 +957,7 @@ function renderCommissions(monthVal) {
            const commDisplay = dailyData.comm === 0 ? `<span style="color:#bbb;">$0</span>` : `<strong style="color:var(--success-color);">$${Math.round(dailyData.comm).toLocaleString()}</strong>`;
            const rowStyle = dailyData.rev === 0 ? `background-color: #fafafa;` : ``;
 
-           dailyTableHTML += `
+           innerHTML += `
               <tr style="${rowStyle}">
                 <td>${mm}/${dayStr}</td>
                 <td>${revDisplay}</td>
@@ -883,7 +966,7 @@ function renderCommissions(monthVal) {
            `;
         }
 
-        dailyTableHTML += `</tbody></table></div>`;
+        innerHTML += `</tbody></table></div>`;
 
         html += `
           <div class="report-card" style="margin-bottom: 15px; cursor: pointer; flex-direction: column; align-items: stretch;" onclick="toggleDailyTable('daily-${t}')">
@@ -897,7 +980,7 @@ function renderCommissions(monthVal) {
                  <div style="font-size: 1.5em; font-weight:bold; color:var(--success-color);">NT$ ${Math.round(techStats[t].comm).toLocaleString()}</div>
               </div>
             </div>
-            ${dailyTableHTML}
+            ${innerHTML}
           </div>
         `;
      }
@@ -911,7 +994,7 @@ function renderCommissions(monthVal) {
 }
 
 // ==========================================
-// 簽名板與送單邏輯 (包含防連點保護)
+// 簽名板與送單邏輯 (無敵防重複送單鎖定)
 // ==========================================
 
 const canvas = document.getElementById("sigCanvas"); 
@@ -922,59 +1005,25 @@ function getCoordinates(e) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
-  
-  let clientX = e.clientX;
-  let clientY = e.clientY;
-  
-  if (e.touches && e.touches.length > 0) {
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  }
-  
-  return {
-    x: (clientX - rect.left) * scaleX,
-    y: (clientY - rect.top) * scaleY
-  };
+  let clientX = e.clientX; let clientY = e.clientY;
+  if (e.touches && e.touches.length > 0) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+  return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
 }
 
-function startDrawing(e) { 
-  isDrawing = true; 
-  ctx.beginPath();
-  draw(e); 
-}
-
-function stopDrawing() { 
-  isDrawing = false; 
-  ctx.beginPath(); 
-}
-
+function startDrawing(e) { isDrawing = true; ctx.beginPath(); draw(e); }
+function stopDrawing() { isDrawing = false; ctx.beginPath(); }
 function draw(e) { 
   if (!isDrawing) return; 
   e.preventDefault(); 
-  
   const coords = getCoordinates(e);
-  
-  ctx.lineWidth = 3; 
-  ctx.lineCap = "round"; 
-  ctx.strokeStyle = "#000"; 
-  
-  ctx.lineTo(coords.x, coords.y); 
-  ctx.stroke(); 
-  
-  ctx.beginPath(); 
-  ctx.moveTo(coords.x, coords.y); 
+  ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#000"; 
+  ctx.lineTo(coords.x, coords.y); ctx.stroke(); 
+  ctx.beginPath(); ctx.moveTo(coords.x, coords.y); 
 }
 
-canvas.addEventListener("mousedown", startDrawing); 
-canvas.addEventListener("mouseup", stopDrawing); 
-canvas.addEventListener("mousemove", draw); 
-canvas.addEventListener("touchstart", startDrawing, {passive: false}); 
-canvas.addEventListener("touchend", stopDrawing); 
-canvas.addEventListener("touchmove", draw, {passive: false});
-
-function clearCanvas() { 
-  ctx.clearRect(0, 0, canvas.width, canvas.height); 
-}
+canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mouseup", stopDrawing); canvas.addEventListener("mousemove", draw); 
+canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
+function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
@@ -1010,7 +1059,8 @@ function preparePrintReceipt() {
 }
 
 async function startCheckout() {
-  if (isSubmitting) return; 
+  const btn = document.getElementById("btnGenerate"); 
+  if (btn.disabled || isSubmitting) return; // 💡 物理阻擋重複點擊
 
   const memberName = document.getElementById("memberName").value.trim(); if (!memberName) return alert("請輸入會員名稱！");
   const phone = document.getElementById("memberPhone").value.trim(); if (!phone) return alert("請輸入手機號碼！");
@@ -1025,7 +1075,7 @@ async function startCheckout() {
   if (hasEmptyPayment) return alert("請確認所有的「收款方式」都已經輸入分配的金額！");
   if (paymentSum !== cartTotal) return alert(`【金額錯誤 ❌】\n收款分配總額 ($${paymentSum}) 與 顧客消費總計 ($${cartTotal}) 不符！\n請重新核對金額後再進行結帳簽名。`);
   
-  const btn = document.getElementById("btnGenerate"); 
+  isSubmitting = true; // 上鎖
   btn.disabled = true; 
   btn.innerText = "處理收據排版中...";
   
@@ -1039,16 +1089,22 @@ async function startCheckout() {
   } catch (err) { 
     alert("排版截圖發生錯誤，請重試！"); 
     resetBtn(); 
+  } finally {
+    isSubmitting = false; // 解鎖，讓使用者可以點擊確認簽名
   }
 }
 
 async function confirmSignature() {
+  const confirmBtn = document.querySelector('#signatureModal .btn-confirm');
+  if (confirmBtn && confirmBtn.disabled) return;
   if (isSubmitting) return;
 
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
   
-  isSubmitting = true; 
+  isSubmitting = true; // 真正送單，徹底上鎖
+  if(confirmBtn) confirmBtn.disabled = true;
+  
   document.getElementById("signatureModal").style.display = "none"; 
   document.getElementById("globalLoader").style.display = "flex"; 
   document.getElementById("btnGenerate").innerText = "最終排版產生中...";
@@ -1093,10 +1149,16 @@ function submitToGAS() {
   .finally(() => {
     isSubmitting = false; 
     document.getElementById("globalLoader").style.display = "none"; 
+    const confirmBtn = document.querySelector('#signatureModal .btn-confirm');
+    if(confirmBtn) confirmBtn.disabled = false;
   });
 }
 
 function resetBtn() { 
   document.getElementById("btnGenerate").disabled = false; 
   document.getElementById("btnGenerate").innerText = "產生確認單並簽名"; 
+  isSubmitting = false;
+  document.getElementById("globalLoader").style.display = "none";
+  const confirmBtn = document.querySelector('#signatureModal .btn-confirm');
+  if(confirmBtn) confirmBtn.disabled = false;
 }
