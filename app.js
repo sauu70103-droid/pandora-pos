@@ -3,7 +3,7 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區 
+// 💡 資安防護：密碼設定區 (未來只調整這裡的數字，絕對不動邏輯)
 const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
@@ -12,6 +12,9 @@ const ROLE_PASSWORDS = {
   "0505": "呂佩穎"      
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
+
+// 💡 參數儲存庫：一進網頁就會去要最新比例
+let systemRules = {};
 
 let lastActivityTime = Date.now();
 let countdownInterval;
@@ -61,10 +64,22 @@ window.onload = () => {
   updateLogoutButton();
   
   initIdleTimer(); 
+  loadSystemSettings(); // 💡 啟動：載入最新參數設定
 };
 
+// 💡 新增：向後端索取最新「參數設定」供前端計算使用
+function loadSystemSettings() {
+  fetch(GAS_URL + "?action=get_settings")
+    .then(res => res.json())
+    .then(res => {
+      if(res.status === "success") {
+        systemRules = res.data;
+      }
+    }).catch(err => console.log("參數載入失敗", err));
+}
+
 // ==========================================
-// 💡 權限與資安邏輯區
+// 💡 權限與資安邏輯區 
 // ==========================================
 
 function initIdleTimer() {
@@ -763,9 +778,8 @@ window.toggleDailyTable = function(id) {
 };
 
 let allCommissionData = [];
-let loadedCommissionMonth = ""; // 💡 新增：紀錄目前已載入的薪水月份，避免重複抓取
+let loadedCommissionMonth = ""; 
 
-// 💡 修正：切換月份時精準發送該月參數
 function loadCommissions() {
   const monthVal = document.getElementById('commissionMonthSelector').value; 
   if (!monthVal) return;
@@ -773,7 +787,6 @@ function loadCommissions() {
   const loadingDiv = document.getElementById("loadingCommission");
   const summaryDiv = document.getElementById("commissionSummary");
 
-  // 只有在還沒抓過這個月份時，才去向後端發送請求
   if (loadedCommissionMonth !== monthVal) {
     summaryDiv.innerHTML = "";
     loadingDiv.style.display = "block";
@@ -823,7 +836,7 @@ function renderCommissions(monthVal) {
         const cat = row['消費大項'];
         const t = row['操作老師'];
         const rev = parseFloat(row['消費金額']) || 0;
-        const comm = parseFloat(row['分潤金額']) || 0;
+        const comm = parseFloat(row['分潤薪水金額']) || parseFloat(row['分潤金額']) || 0; 
         const pct = row['分潤%數'];
         const member = row['消費會員'] || "未填寫";
         const dateOnly = rawDateStr.split(' ')[0]; 
@@ -854,7 +867,10 @@ function renderCommissions(monthVal) {
   });
 
   if (techStats["呂函優"]) {
-     const managerBonus = Math.round(totalOpRev * 0.01);
+     // 💡 根據您的要求，店長加給固定寫死為 1% (0.01)，不再受雲端參數影響
+     const managerPct = 0.01; 
+     const managerBonus = Math.round(totalOpRev * managerPct);
+     
      techStats["呂函優"].comm += managerBonus;
      techStats["呂函優"].categories["🌟 店長加給"] = {
          rev: totalOpRev,
@@ -877,7 +893,6 @@ function renderCommissions(monthVal) {
 
   let hasData = false;
   
-  // 💡 建立強制大項排序的陣列依據
   const categoryOrder = Object.keys(menuData);
   categoryOrder.push("🌟 店長加給");
 
@@ -918,7 +933,6 @@ function renderCommissions(monthVal) {
               <tbody>
         `;
 
-        // 💡 將該老師的大項依據標準菜單進行強制排序
         const sortedCats = Object.keys(techStats[t].categories).sort((a, b) => {
             let idxA = categoryOrder.indexOf(a);
             let idxB = categoryOrder.indexOf(b);
@@ -1002,7 +1016,7 @@ function renderCommissions(monthVal) {
 }
 
 // ==========================================
-// 簽名板與送單邏輯 (無敵防重複送單鎖定)
+// 簽名板與送單邏輯
 // ==========================================
 
 const canvas = document.getElementById("sigCanvas"); 
