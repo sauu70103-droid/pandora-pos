@@ -3,7 +3,7 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區 (未來只調整這裡的數字，絕對不動邏輯)
+// 💡 資安防護：密碼設定區 
 const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
@@ -13,7 +13,6 @@ const ROLE_PASSWORDS = {
 };
 let currentRole = sessionStorage.getItem('currentRole') || null;
 
-// 💡 參數儲存庫：一進網頁就會去要最新比例
 let systemRules = {};
 
 let lastActivityTime = Date.now();
@@ -64,10 +63,9 @@ window.onload = () => {
   updateLogoutButton();
   
   initIdleTimer(); 
-  loadSystemSettings(); // 💡 啟動：載入最新參數設定
+  loadSystemSettings(); 
 };
 
-// 💡 新增：向後端索取最新「參數設定」供前端計算使用
 function loadSystemSettings() {
   fetch(GAS_URL + "?action=get_settings")
     .then(res => res.json())
@@ -657,6 +655,61 @@ function processReportData(filterType) {
   totalPerformanceCard.style.cursor = "default"; 
   totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
   summaryDiv.appendChild(totalPerformanceCard);
+
+  // 💡 歸檔防呆：檢查是否已有歸檔紀錄
+  if (archiveSection.style.display === "block") {
+      let tDate = "";
+      if (filterType === 'today') {
+        tDate = todayStr;
+      } else if (filterType === 'custom') {
+        tDate = customDateStr;
+      }
+      if (tDate) {
+         checkIfArchived(tDate);
+      }
+  }
+}
+
+// 💡 新增：向後端檢查選定日期是否已存在分潤表
+function checkIfArchived(targetDate) {
+  const archiveBtn = document.querySelector(".btn-archive");
+  archiveBtn.disabled = true;
+  archiveBtn.innerText = "檢查歸檔狀態中...";
+  archiveBtn.style.background = "#ccc";
+  archiveBtn.style.cursor = "wait";
+  
+  const monthStr = targetDate.substring(0, 7); // 擷取 YYYY-MM
+  fetch(GAS_URL + "?action=get_commissions&month=" + monthStr)
+    .then(res => res.json())
+    .then(res => {
+       if(res.status === "success") {
+          // 比對回傳資料中，是否有任何一筆資料的日期與目標日期相符
+          const hasArchived = res.data.some(row => {
+             const dateVal = row['消費日期'];
+             return dateVal && String(dateVal).startsWith(targetDate);
+          });
+          
+          if (hasArchived) {
+             archiveBtn.disabled = true;
+             archiveBtn.innerText = "🔒 已有歸檔記錄";
+             archiveBtn.style.background = "#999";
+             archiveBtn.style.cursor = "not-allowed";
+          } else {
+             resetArchiveBtn();
+          }
+       } else {
+          resetArchiveBtn();
+       }
+    })
+    .catch(() => resetArchiveBtn());
+}
+
+function resetArchiveBtn() {
+  const archiveBtn = document.querySelector(".btn-archive");
+  archiveBtn.disabled = false;
+  archiveBtn.innerText = "📁 確認無誤，執行分潤薪水拆解歸檔";
+  archiveBtn.style.background = "var(--success-color)";
+  archiveBtn.style.cursor = "pointer";
 }
 
 async function executeArchive() {
@@ -701,15 +754,16 @@ async function executeArchive() {
   .then(res => res.json())
   .then(result => {
     alert(result.message);
+    // 成功歸檔後再次觸發檢查以鎖定按鈕
+    checkIfArchived(targetDate);
   })
   .catch(err => {
     alert("歸檔發生錯誤，請檢查網路連線。");
+    resetArchiveBtn();
   })
   .finally(() => {
     isSubmitting = false;
     document.getElementById("globalLoader").style.display = "none";
-    archiveBtn.disabled = false; 
-    archiveBtn.innerText = "📁 確認無誤，執行分潤薪水拆解歸檔";
   });
 }
 
@@ -867,7 +921,6 @@ function renderCommissions(monthVal) {
   });
 
   if (techStats["呂函優"]) {
-     // 💡 根據您的要求，店長加給固定寫死為 1% (0.01)，不再受雲端參數影響
      const managerPct = 0.01; 
      const managerBonus = Math.round(totalOpRev * managerPct);
      
@@ -1111,20 +1164,23 @@ async function startCheckout() {
   } catch (err) { 
     alert("排版截圖發生錯誤，請重試！"); 
     resetBtn(); 
-  } finally {
-    isSubmitting = false; 
   }
+}
+
+// 💡 新增：簽名板點擊取消返回時的專屬函式
+function cancelSignature() {
+  document.getElementById('signatureModal').style.display = 'none';
+  resetBtn(); // 直接觸發重置按鈕狀態，解除鎖定
 }
 
 async function confirmSignature() {
   const confirmBtn = document.querySelector('#signatureModal .btn-confirm');
   if (confirmBtn && confirmBtn.disabled) return;
-  if (isSubmitting) return;
+  if (!isSubmitting) return; // 確保有走正常的送單流程
 
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
   
-  isSubmitting = true; 
   if(confirmBtn) confirmBtn.disabled = true;
   
   document.getElementById("signatureModal").style.display = "none"; 
