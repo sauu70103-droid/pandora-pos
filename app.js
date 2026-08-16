@@ -3,7 +3,6 @@
 // ==========================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz1BKmcuIs6CbIi7d5U8qpD381QwZhUT550DAtSi1S1OSRVg1GOzlSiSBM3ERa2rGzj4A/exec";
 
-// 💡 資安防護：密碼設定區 
 const SYSTEM_PWD = "96831088"; 
 const ROLE_PASSWORDS = {
   "9683": "admin",      
@@ -26,6 +25,9 @@ let currentOrderId = "";
 let currentTimeString = "";
 
 let isSubmitting = false; 
+
+// 💡 新增：儲存目前畫面上算好的報表摘要，不用讓後端重算
+let currentReportSummary = { cashFlow: {}, techRevenue: {}, total: 0 };
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
@@ -656,7 +658,14 @@ function processReportData(filterType) {
   totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
   summaryDiv.appendChild(totalPerformanceCard);
 
-  // 💡 歸檔防呆：檢查是否已有歸檔紀錄
+  // 💡 將算好的資料暫存，等等按歸檔時直接送給後端
+  currentReportSummary = {
+     total: filteredTotal,
+     cashFlow: cashFlow,
+     techRevenue: techRevenue
+  };
+
+  // 檢查是否已有歸檔紀錄
   if (archiveSection.style.display === "block") {
       let tDate = "";
       if (filterType === 'today') {
@@ -670,7 +679,7 @@ function processReportData(filterType) {
   }
 }
 
-// 💡 新增：向後端檢查選定日期是否已存在分潤表
+// 💡 極速版：呼叫後端新通道，一秒內確認歸檔狀態
 function checkIfArchived(targetDate) {
   const archiveBtn = document.querySelector(".btn-archive");
   archiveBtn.disabled = true;
@@ -678,25 +687,14 @@ function checkIfArchived(targetDate) {
   archiveBtn.style.background = "#ccc";
   archiveBtn.style.cursor = "wait";
   
-  const monthStr = targetDate.substring(0, 7); // 擷取 YYYY-MM
-  fetch(GAS_URL + "?action=get_commissions&month=" + monthStr)
+  fetch(GAS_URL + "?action=check_archive_status&date=" + targetDate)
     .then(res => res.json())
     .then(res => {
-       if(res.status === "success") {
-          // 比對回傳資料中，是否有任何一筆資料的日期與目標日期相符
-          const hasArchived = res.data.some(row => {
-             const dateVal = row['消費日期'];
-             return dateVal && String(dateVal).startsWith(targetDate);
-          });
-          
-          if (hasArchived) {
-             archiveBtn.disabled = true;
-             archiveBtn.innerText = "🔒 已有歸檔記錄";
-             archiveBtn.style.background = "#999";
-             archiveBtn.style.cursor = "not-allowed";
-          } else {
-             resetArchiveBtn();
-          }
+       if(res.status === "success" && res.archived === true) {
+          archiveBtn.disabled = true;
+          archiveBtn.innerText = "🔒 已有歸檔記錄";
+          archiveBtn.style.background = "#999";
+          archiveBtn.style.cursor = "not-allowed";
        } else {
           resetArchiveBtn();
        }
@@ -742,19 +740,20 @@ async function executeArchive() {
     alert("前端截圖產生失敗，這可能導致本次歸檔沒有圖片備份。錯誤碼：" + e.toString());
   }
 
+  // 💡 極速版：打包前端已經算好的摘要直接送給後端
   fetch(GAS_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ 
       action: "archive", 
       target_date: targetDate,
-      report_image_base64: base64Img 
+      report_image_base64: base64Img,
+      summary: currentReportSummary 
     })
   })
   .then(res => res.json())
   .then(result => {
     alert(result.message);
-    // 成功歸檔後再次觸發檢查以鎖定按鈕
     checkIfArchived(targetDate);
   })
   .catch(err => {
@@ -1170,13 +1169,13 @@ async function startCheckout() {
 // 💡 新增：簽名板點擊取消返回時的專屬函式
 function cancelSignature() {
   document.getElementById('signatureModal').style.display = 'none';
-  resetBtn(); // 直接觸發重置按鈕狀態，解除鎖定
+  resetBtn(); // 解除鎖定
 }
 
 async function confirmSignature() {
   const confirmBtn = document.querySelector('#signatureModal .btn-confirm');
   if (confirmBtn && confirmBtn.disabled) return;
-  if (!isSubmitting) return; // 確保有走正常的送單流程
+  if (!isSubmitting) return; 
 
   const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
   if (canvas.toDataURL() === blank.toDataURL()) return alert("請顧客完成簽名！");
