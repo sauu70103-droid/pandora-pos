@@ -26,7 +26,6 @@ let currentTimeString = "";
 
 let isSubmitting = false; 
 
-// 💡 新增：儲存目前畫面上算好的報表摘要，不用讓後端重算
 let currentReportSummary = { cashFlow: {}, techRevenue: {}, total: 0 };
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
@@ -658,14 +657,12 @@ function processReportData(filterType) {
   totalPerformanceCard.innerHTML = `<span style="color: #D2691E; font-weight: 900;">🏆 總業績額 (不含店面收支)</span> <span class="amount" style="color: #D2691E; font-size: 1.1em; font-weight: 900;">NT$ ${teachersTotalRevenue.toLocaleString()}</span>`;
   summaryDiv.appendChild(totalPerformanceCard);
 
-  // 💡 將算好的資料暫存，等等按歸檔時直接送給後端
   currentReportSummary = {
      total: filteredTotal,
      cashFlow: cashFlow,
      techRevenue: techRevenue
   };
 
-  // 檢查是否已有歸檔紀錄
   if (archiveSection.style.display === "block") {
       let tDate = "";
       if (filterType === 'today') {
@@ -679,7 +676,6 @@ function processReportData(filterType) {
   }
 }
 
-// 💡 極速版：呼叫後端新通道，一秒內確認歸檔狀態
 function checkIfArchived(targetDate) {
   const archiveBtn = document.querySelector(".btn-archive");
   archiveBtn.disabled = true;
@@ -740,7 +736,6 @@ async function executeArchive() {
     alert("前端截圖產生失敗，這可能導致本次歸檔沒有圖片備份。錯誤碼：" + e.toString());
   }
 
-  // 💡 極速版：打包前端已經算好的摘要直接送給後端
   fetch(GAS_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
@@ -1130,6 +1125,16 @@ function preparePrintReceipt() {
     itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
   });
   document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
+
+  // 💡 新增：處理備註顯示邏輯
+  const orderNote = document.getElementById("orderNote").value.trim();
+  const noteArea = document.getElementById("rcptNoteArea");
+  if (orderNote) {
+    document.getElementById("rcptNoteText").innerText = orderNote;
+    noteArea.style.display = "block";
+  } else {
+    noteArea.style.display = "none";
+  }
 }
 
 async function startCheckout() {
@@ -1166,10 +1171,9 @@ async function startCheckout() {
   }
 }
 
-// 💡 新增：簽名板點擊取消返回時的專屬函式
 function cancelSignature() {
   document.getElementById('signatureModal').style.display = 'none';
-  resetBtn(); // 解除鎖定
+  resetBtn(); 
 }
 
 async function confirmSignature() {
