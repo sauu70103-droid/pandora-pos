@@ -88,7 +88,7 @@
     .archive-section h3 { margin-top: 0; color: #4B7946; }
     .btn-archive { background: var(--success-color); color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; transition: 0.2s; }
     .btn-archive:hover { background: #739470; }
-    .btn-archive:disabled { cursor: not-allowed; opacity: 0.8; } /* 💡 確保禁用時滑鼠顯示禁止圖示 */
+    .btn-archive:disabled { cursor: not-allowed; opacity: 0.8; }
 
     #loadingReport, #loadingCommission { text-align: center; color: var(--primary-color); font-weight: bold; display: none; margin: 20px 0; }
 
@@ -306,7 +306,6 @@
     <h2 style="color: var(--text-dark);">請顧客簽名確認</h2>
     <canvas id="sigCanvas" width="400" height="200"></canvas>
     
-    <!-- 💡 修改：點擊取消返回時觸發專屬解鎖函數 cancelSignature() -->
     <div class="modal-btns" style="display: flex; gap: 10px;">
       <button class="btn-clear" onclick="clearCanvas()" style="flex:1;">清除重簽</button>
       <button class="btn-clear" onclick="cancelSignature()" style="flex:1; background:#ccc; color:var(--text-dark);">取消返回</button>
@@ -354,6 +353,13 @@
     </table>
     <div class="rcpt-divider"></div>
     <div class="rcpt-total">總計金額： <span id="rcptTotalAmount"></span></div>
+    
+    <!-- 💡 新增：備註區塊 (若無備註將自動隱藏) -->
+    <div id="rcptNoteArea" style="display: none; margin-top: 15px; padding: 10px; background-color: #f9f9f9; border-radius: 6px; text-align: left;">
+      <div style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px;">📝 備註事項：</div>
+      <div id="rcptNoteText" style="font-size: 14px; color: #555; line-height: 1.5;"></div>
+    </div>
+
     <div class="rcpt-divider"></div>
     <div class="rcpt-footer">
       ❤️陪你一起美·陪你一起健康❤️<br>
