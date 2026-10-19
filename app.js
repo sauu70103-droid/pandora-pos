@@ -30,7 +30,6 @@ let currentReportSummary = { cashFlow: {}, techRevenue: {}, total: 0 };
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
-// 💡 更新：新增了「健康甲/消毒殺菌」、「特殊甲/消毒殺菌」、「產品/磨板、磨頭剪刀」
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
@@ -272,7 +271,6 @@ function renderSubItems(category) {
   }
 }
 
-// 💡 更新：在購物車加入「優惠折扣」下拉選單
 function addToCart(category, itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -316,8 +314,7 @@ function addToCart(category, itemName, itemPrice) {
   tr.innerHTML = `<td style="text-align:left; font-weight:bold;">
                     <input type="hidden" class="item-category" value="${category}">
                     <input type="hidden" class="item-name" value="${itemName}">
-                    <div style="font-size:0.75em; color:#888; font-weight:normal; margin-bottom:3px;">${category}</div>
-                    ${itemName}
+                    <div style="font-size:0.75em; color:#888; font-weight:normal; margin-bottom:3px;">${category}</div>${itemName}
                   </td>
                   <td><select class="item-tech">${techOptions}</select></td>
                   <td>${inputHTML}</td>
@@ -383,7 +380,6 @@ function checkPaymentTotal() {
   }
 }
 
-// 💡 更新：總金額必須是 (單價 × 折扣的四捨五入) × 數量
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
@@ -574,7 +570,9 @@ function processReportData(filterType) {
         let subtotal = Math.abs(price * qty);
         let category = i.category || getCategoryByItemName(i.item_name);
         let priceDisplay = (i.item_name.includes("抵扣")) ? `-$${subtotal}` : `$${subtotal}`;
-        return `${category}＿${i.item_name} * ${qty} - (${priceDisplay}) (${i.technician})`;
+        
+        let discountTag = (i.discount_text && i.discount_text !== "無折扣") ? ` [${i.discount_text}]` : "";
+        return `${category}＿${i.item_name}${discountTag} *${qty} - (${priceDisplay}) (${i.technician})`;
       }).join('<br>');
 
       const displayTime = `${rowDateStr} <br> ${pad(rowDateObj.getHours())}:${pad(rowDateObj.getMinutes())}`;
@@ -588,13 +586,13 @@ function processReportData(filterType) {
            pMethodStr.split(",").forEach(part => {
              let mName = part.split(":")[0].trim();
              let mIcon = paymentIcons[mName] || "💳";
-             badgeHtml += `<span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px; margin-right:3px;">${mIcon} ${part.trim()}</span>`;
+             badgeHtml += `<span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px; margin-right:3px;">${mIcon}${part.trim()}</span>`;
            });
            paymentBadge = `<br>` + badgeHtml;
         } else {
            const pMethod = pMethodStr.trim();
            const pIcon = paymentIcons[pMethod] || "💳"; 
-           paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon} ${pMethod}</span>`;
+           paymentBadge = `<br><span style="font-size:0.8em; background:#E8E0D5; color:#5C4A3D; padding:2px 6px; border-radius:4px; display:inline-block; margin-top:3px;">${pIcon}${pMethod}</span>`;
         }
       }
 
@@ -606,7 +604,7 @@ function processReportData(filterType) {
       detailedHTML += `
         <tr style="${rowStyle}">
           <td style="font-size:0.85em;">${displayTime}</td>
-          <td>${row["會員名稱"]} ${phoneDisplay} ${paymentBadge}</td>
+          <td>${row["會員名稱"]} ${phoneDisplay}${paymentBadge}</td>
           <td style="font-size:0.9em; line-height:1.5; text-align:left;">${itemsStr}</td>
           <td style="color:var(--text-dark); font-size:1.1em;">${displayAmount}</td>
         </tr>
@@ -637,7 +635,7 @@ function processReportData(filterType) {
   if (filterType === 'week') {
     const startStr = `${bounds.startOfWeek.getFullYear()}-${pad(bounds.startOfWeek.getMonth()+1)}-${pad(bounds.startOfWeek.getDate())}`;
     const endStr = `${bounds.endOfWeek.getFullYear()}-${pad(bounds.endOfWeek.getMonth()+1)}-${pad(bounds.endOfWeek.getDate())}`;
-    displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) - ${currentTechFilter}` : `本週業績 (${startStr} ~ ${endStr})`;
+    displayTitle = currentTechFilter ? `本週業績 (${startStr} ~ ${endStr}) -${currentTechFilter}` : `本週業績 (${startStr} ~${endStr})`;
   } else if (filterType === 'customMonth') {
     displayTitle = `指定月份業績 (${document.getElementById("customMonthFilter").value})`;
   }
@@ -809,7 +807,7 @@ function fetchVoidList() {
             hasData = true;
             const div = document.createElement("div");
             div.style.cssText = "border: 1px solid #ccc; padding:15px; margin-bottom:10px; border-radius:6px; background:#fff; display:flex; justify-content:space-between; align-items:center;";
-            div.innerHTML = `<div><strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br><span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} | 應收：$${row["總金額"]}</span></div><div><button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button></div>`;
+            div.innerHTML = `<div><strong>顧客：${row["會員名稱"]}</strong> (單號：${row["交易單號"]})<br><span style="font-size:0.9em; color:#666; display:block; margin-top:5px;">時間：${row["結帳時間"]} \vert{} 應收：$${row["總金額"]}</span></div><div><button class="btn-void" onclick="executeVoid('${row["交易單號"]}', '${row["結帳時間"]}')">執行作廢</button></div>`;
             container.appendChild(div);
           }
         });
@@ -1014,8 +1012,7 @@ function renderCommissions(monthVal) {
               <tr>
                 <td style="text-align:left;">${catName}</td>
                 <td>${cData.pct}</td>
-                <td>$${cData.rev.toLocaleString()}</td>
-                <td style="color:var(--success-color); font-weight:bold;">$${Math.round(cData.comm).toLocaleString()}</td>
+                <td>$${cData.rev.toLocaleString()}</td> <td style="color:var(--success-color); font-weight:bold;">$${Math.round(cData.comm).toLocaleString()}</td>
                 <td>${cData.visitors.size !== undefined ? cData.visitors.size : cData.visitors}</td>
               </tr>
            `;
@@ -1114,7 +1111,6 @@ canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mou
 canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
-// 💡 更新：收據明細自動附加折扣文字
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
@@ -1227,7 +1223,6 @@ async function confirmSignature() {
   submitToGAS();
 }
 
-// 💡 更新：送單時，將品名加上 [XX折] 的標籤，並以折後價格送出
 function submitToGAS() {
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => { 
@@ -1242,9 +1237,15 @@ function submitToGAS() {
     let discountedPrice = Math.round(sPrice * sDiscount);
     if (sName.includes("抵扣")) discountedPrice = -Math.abs(discountedPrice); 
     
-    let finalName = discountText !== "無折扣" ? `${sName} [${discountText}]` : sName;
-    
-    cartItems.push({ category: sCategory, item_name: finalName, technician: row.querySelector(".item-tech").value, price: discountedPrice, qty: sQty }); 
+    cartItems.push({ 
+      category: sCategory, 
+      item_name: sName, 
+      technician: row.querySelector(".item-tech").value, 
+      price: discountedPrice, 
+      qty: sQty,
+      discount: sDiscount,
+      discount_text: discountText
+    }); 
   });
   
   const payload = { action: "checkout", checkout_time: currentTimeString, order_id: currentOrderId, member_name: document.getElementById("memberName").value.trim(), phone_number: document.getElementById("memberPhone").value.trim(), cashier: document.getElementById("cashier").value, payment_method: getFinalPaymentString(), payment_unit: document.getElementById("paymentUnit").value, total_amount: calculateTotal(), cart_items: cartItems, note: document.getElementById("orderNote").value, draft_base64: draftBase64Data, signed_base64: signedBase64Data };
