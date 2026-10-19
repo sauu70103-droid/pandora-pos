@@ -30,16 +30,17 @@ let currentReportSummary = { cashFlow: {}, techRevenue: {}, total: 0 };
 
 const technicians = ["李家蓁", "呂函優", "呂佩穎", "店面收支"];
 
+// 💡 更新：新增了「健康甲/消毒殺菌」、「特殊甲/消毒殺菌」、「產品/磨板、磨頭剪刀」
 const menuData = {
   "💅 美甲-手部": { "設計款-不指定設計師優惠價": 999, "設計款-指定設計師優惠價": 1299, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "客製沙龍造型": "*", "活動優惠價": "*", "單色美甲": 799, "亮片美甲": 799, "貓眼美甲": 899, "透明建甲": 600, "單指延長甲": 120, "十指延長甲": 1000, "單色漸層": 999, "變化法式": 1100, "變化跳色": 1000, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500, "兒童美甲": 700 },
   "🦶 美甲-足部": { "設計款-不指定設計師優惠價": 1199, "設計款-指定設計師優惠價": 1499, "服務費": "*", "造型飾品": "*", "造型凝膠設計": "*", "變化貓眼": "*", "活動優惠價": "*", "單色美甲": 999, "亮片美甲": 999, "貓眼美甲": 1099, "透明建甲": 800, "客製沙龍造型": "*", "單色漸層": 1199, "變化法式": 1300, "變化跳色": 1200, "美甲鏡面造型(單指)": 80, "美甲鏡面造型(十指)": 500 },
-  "🌿 健康甲": { "微晶補甲(大拇指)": 200, "微晶補甲(其他小指)": 100, "指甲強韌處理(十指)": 300, "嵌甲(大拇指)": 100, "嵌甲(其他小指)": 50, "捲甲矯正(大拇指)": 300, "捲甲矯正(其他小指)": 200, "重建甲床(大拇指)": 500, "重建甲床(其他小指)": 300, "異型調整": 300, "矯正貼片": 1500 },
-  "🏥 特殊指甲護理": { "咬甲矯正": 1000, "肉包甲強化塑型(大拇指)": 200, "肉包甲強化塑型(其他小指)": 100, "矯正貼片": 1500, "特殊甲護理-(足部十趾)": 700, "特殊指甲/捲甲矯正(大拇指)": 500, "特殊指甲/捲甲矯正(其他小趾)": 300, "特殊甲/嵌甲(大拇指)": 100, "特殊甲/嵌甲(其他小指)": 100, "異型增生/菌絲養護(大拇指)": 500, "異型增生/菌絲養護(其他小指)": 300, "特殊甲護理(手部)": 500, "特殊甲/甲床重建(其他小指/單指計費)": 300, "特殊甲/甲床重建(大拇指/單指計費)": 500, "特殊甲足繭(嚴重)": 1300, "特殊甲足繭(一般)": 1100 },
+  "🌿 健康甲": { "微晶補甲(大拇指)": 200, "微晶補甲(其他小指)": 100, "指甲強韌處理(十指)": 300, "嵌甲(大拇指)": 100, "嵌甲(其他小指)": 50, "捲甲矯正(大拇指)": 300, "捲甲矯正(其他小指)": 200, "重建甲床(大拇指)": 500, "重建甲床(其他小指)": 300, "異型調整": 300, "矯正貼片": 1500, "消毒殺菌（單指）": 50 },
+  "🏥 特殊指甲護理": { "咬甲矯正": 1000, "肉包甲強化塑型(大拇指)": 200, "肉包甲強化塑型(其他小指)": 100, "矯正貼片": 1500, "特殊甲護理-(足部十趾)": 700, "特殊指甲/捲甲矯正(大拇指)": 500, "特殊指甲/捲甲矯正(其他小趾)": 300, "特殊甲/嵌甲(大拇指)": 100, "特殊甲/嵌甲(其他小指)": 100, "異型增生/菌絲養護(大拇指)": 500, "異型增生/菌絲養護(其他小指)": 300, "特殊甲護理(手部)": 500, "特殊甲/甲床重建(其他小指/單指計費)": 300, "特殊甲/甲床重建(大拇指/單指計費)": 500, "特殊甲足繭(嚴重)": 1300, "特殊甲足繭(一般)": 1100, "消毒殺菌（十指）": 200 },
   "👁️ 美睫": { "自然裸妝": 1000, "濃密": 1300, "爆濃款": 1500, "加購(下睫毛)": 200, "純卸睫毛(本店)": 300, "純卸睫毛(他店)": 500, "卸睫續接卸睫費(本店)": 100, "卸睫續接卸睫費(他店)": 200, "自訂": "*", "服務費": "*", "睫毛管理(上睫毛)": 1199, "睫毛管理(下睫毛)": 699, "睫毛管理(增黑)": 300, "睫毛管理體驗價(上睫毛)": 999 },
   "👂 采耳": { "專業採耳": 999, "兒童耳道清潔": 699, "耳氤氳肩頸舒緩": 899, "身心減壓套餐": 1599, "服務費": "*" },
   "🧴 手足保養": { "淨化保養-手部淨化指甲保養續作": 300, "淨化保養-足部指甲": 500, "淨化保養-手部純保養": 400, "淨化保養-手工拋光": 100, "深層保養-短膜手足膜": 299, "深層保養-長膜手足膜": 399, "深層保養-手部深層保養": 1200, "深層保養-足部深層保養": 1800, "深層保養-足繭護理(嚴重)": 1000, "深層保養-足繭護理(一般)": 800, "深層保養-拋棄式足搓": 99 },
   "💧 卸甲": { "卸甲(他店續做)": 300, "卸甲(本店不續做)": 300, "卸甲(他店不續做)": 500, "卸甲(本店續做)": 200 },
-  "🛍️ 產品": { "特殊甲產品-修甲套組": 1500, "特殊甲產品-防潮平衡液": 280, "特殊甲產品-BAOGAAO": 350, "特殊甲產品-灰指甲修護液": 980, "特殊甲產品-淨銀乳": 680, "特殊甲產品-磨板類": 40, "特殊甲產品-煥采抗菌噴霧": 480, "指緣修護油": 280, "指緣軟化液": 350, "鈣元素硬甲油": 375, "手足滋潤修護霜": 280 },
+  "🛍️ 產品": { "特殊甲產品-修甲套組": 1500, "特殊甲產品-防潮平衡液": 280, "特殊甲產品-BAOGAAO": 350, "特殊甲產品-灰指甲修護液": 980, "特殊甲產品-淨銀乳": 680, "特殊甲產品-磨板類": 40, "特殊甲產品-煥采抗菌噴霧": 480, "指緣修護油": 280, "指緣軟化液": 350, "鈣元素硬甲油": 375, "手足滋潤修護霜": 280, "磨板": 40, "磨頭/剪刀": 680 },
   "🪒 除毛": { "腋下": 400, "腳趾/手指": 250, "全背": 800, "小花": 300, "小腿": 800, "大腿": 800, "上手臂/小手臂": 700, "比基尼式": 1300, "膝蓋": 200, "巴西式全除": 1600, "特殊護理(保濕鎮定敷膜A)": 99, "特殊護理(保濕鎮定敷膜B)": 299 },
   "💰 定金及加費": { "定金": 500, "定金(抵扣)": "*", "指定費": "*", "服務費": "*", "加班費": 200, "年節服務費": 100, "儲值金(儲值)": "*", "儲值金(抵扣)": "*", "課堂購買": "*", "活動抵扣": "*", "自由抵扣": "*" }
 };
@@ -271,6 +272,7 @@ function renderSubItems(category) {
   }
 }
 
+// 💡 更新：在購物車加入「優惠折扣」下拉選單
 function addToCart(category, itemName, itemPrice) {
   const tbody = document.getElementById("cartBody");
   const tr = document.createElement("tr");
@@ -290,6 +292,18 @@ function addToCart(category, itemName, itemPrice) {
     ? `<input type="number" class="item-price" placeholder="輸入金額" oninput="calculateTotal()">` 
     : `<input type="number" class="item-price" value="${itemPrice}" oninput="calculateTotal()" readonly style="background:#eee;">`;
   
+  const discountHTML = `
+    <select class="item-discount" onchange="calculateTotal()" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background-color: #FCFAFA; font-size: 1em; cursor: pointer;">
+      <option value="1">無折扣</option>
+      <option value="0.95">95折</option>
+      <option value="0.9">9折</option>
+      <option value="0.85">85折</option>
+      <option value="0.8">8折</option>
+      <option value="0.7">7折</option>
+      <option value="0.6">6折</option>
+    </select>
+  `;
+
   let qtyOptions = "";
   for (let i = 1; i <= 8; i++) {
     qtyOptions += `<option value="${i}">${i}</option>`;
@@ -307,6 +321,7 @@ function addToCart(category, itemName, itemPrice) {
                   </td>
                   <td><select class="item-tech">${techOptions}</select></td>
                   <td>${inputHTML}</td>
+                  <td>${discountHTML}</td>
                   <td>${qtyHTML}</td>
                   <td><button class="btn-remove" onclick="removeCartItem(this)">刪除</button></td>`;
   tbody.appendChild(tr); 
@@ -368,13 +383,18 @@ function checkPaymentTotal() {
   }
 }
 
+// 💡 更新：總金額必須是 (單價 × 折扣的四捨五入) × 數量
 function calculateTotal() {
   let total = 0;
   document.querySelectorAll("#cartBody tr").forEach(row => {
     const sName = row.querySelector(".item-name").value;
     let price = parseInt(row.querySelector(".item-price").value) || 0;
+    let discount = parseFloat(row.querySelector(".item-discount").value) || 1;
     let qty = parseInt(row.querySelector(".item-qty").value) || 1;
-    let subtotal = price * qty;
+    
+    let discountedPrice = Math.round(price * discount);
+    let subtotal = discountedPrice * qty;
+    
     if (sName.includes("抵扣")) { total -= Math.abs(subtotal); } else { total += subtotal; }
   });
   document.getElementById("totalAmount").innerText = total; 
@@ -1094,6 +1114,7 @@ canvas.addEventListener("mousedown", startDrawing); canvas.addEventListener("mou
 canvas.addEventListener("touchstart", startDrawing, {passive: false}); canvas.addEventListener("touchend", stopDrawing); canvas.addEventListener("touchmove", draw, {passive: false});
 function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
 
+// 💡 更新：收據明細自動附加折扣文字
 function preparePrintReceipt() {
   const selectedTime = document.getElementById("checkoutDateTime").value;
   currentTimeString = selectedTime.replace('T', ' '); 
@@ -1115,18 +1136,25 @@ function preparePrintReceipt() {
     const sCategory = row.querySelector(".item-category").value;
     const sName = row.querySelector(".item-name").value; 
     const sTech = row.querySelector(".item-tech").value;
-    const sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
+    
+    let sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
+    let discountSelect = row.querySelector(".item-discount");
+    let sDiscount = parseFloat(discountSelect.value) || 1;
+    let discountText = discountSelect.options[discountSelect.selectedIndex].text;
     const sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
     
-    const subtotal = Math.abs(sPrice) * sQty;
+    let discountedPrice = Math.round(sPrice * sDiscount);
+    const subtotal = Math.abs(discountedPrice) * sQty;
+    
     let displayPrice = "$" + subtotal; 
     if (sName.includes("抵扣")) displayPrice = "-$" + subtotal;
     
-    itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${sName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
+    let displayName = discountText !== "無折扣" ? `${sName} [${discountText}]` : sName;
+    
+    itemsBody.innerHTML += `<tr><td><div class="rcpt-item-title">${displayName}</div><div class="rcpt-item-desc">${memberName}</div></td><td style="text-align: center;">${sQty}</td><td style="text-align: right;"><div class="rcpt-item-title">${displayPrice}</div><div class="rcpt-item-desc">(${sTech})</div></td></tr>`;
   });
   document.getElementById("rcptTotalAmount").innerText = "$" + calculateTotal();
 
-  // 💡 新增：處理備註顯示邏輯
   const orderNote = document.getElementById("orderNote").value.trim();
   const noteArea = document.getElementById("rcptNoteArea");
   if (orderNote) {
@@ -1199,15 +1227,24 @@ async function confirmSignature() {
   submitToGAS();
 }
 
+// 💡 更新：送單時，將品名加上 [XX折] 的標籤，並以折後價格送出
 function submitToGAS() {
   const cartItems = [];
   document.querySelectorAll("#cartBody tr").forEach(row => { 
     const sCategory = row.querySelector(".item-category").value;
     const sName = row.querySelector(".item-name").value; 
     let sPrice = parseInt(row.querySelector(".item-price").value) || 0; 
+    let discountSelect = row.querySelector(".item-discount");
+    let sDiscount = parseFloat(discountSelect.value) || 1;
+    let discountText = discountSelect.options[discountSelect.selectedIndex].text;
     let sQty = parseInt(row.querySelector(".item-qty").value) || 1; 
-    if (sName.includes("抵扣")) sPrice = -Math.abs(sPrice); 
-    cartItems.push({ category: sCategory, item_name: sName, technician: row.querySelector(".item-tech").value, price: sPrice, qty: sQty }); 
+    
+    let discountedPrice = Math.round(sPrice * sDiscount);
+    if (sName.includes("抵扣")) discountedPrice = -Math.abs(discountedPrice); 
+    
+    let finalName = discountText !== "無折扣" ? `${sName} [${discountText}]` : sName;
+    
+    cartItems.push({ category: sCategory, item_name: finalName, technician: row.querySelector(".item-tech").value, price: discountedPrice, qty: sQty }); 
   });
   
   const payload = { action: "checkout", checkout_time: currentTimeString, order_id: currentOrderId, member_name: document.getElementById("memberName").value.trim(), phone_number: document.getElementById("memberPhone").value.trim(), cashier: document.getElementById("cashier").value, payment_method: getFinalPaymentString(), payment_unit: document.getElementById("paymentUnit").value, total_amount: calculateTotal(), cart_items: cartItems, note: document.getElementById("orderNote").value, draft_base64: draftBase64Data, signed_base64: signedBase64Data };
